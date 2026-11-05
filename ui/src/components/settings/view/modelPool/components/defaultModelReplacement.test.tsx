@@ -144,8 +144,8 @@ it('refreshes the preview after a concurrent change instead of writing a stale p
   expect(config().model?.providers?.openai).toBeUndefined();
 });
 
-it('removes an unreferenced model from the draft without writing', async () => {
-  const { requests, saves } = setup();
+it('atomically removes an unreferenced saved model instead of only changing the draft', async () => {
+  const { requests, saves, config } = setup();
   fireEvent.click(screen.getByRole('button', { name: 'settingsPage.actions.edit' }));
   fireEvent.click(screen.getAllByRole('button', { name: 'pilotDeckConfig.panels.models.removeModelAria' })[1]);
   const dialog = within(await screen.findByRole('dialog'));
@@ -153,8 +153,10 @@ it('removes an unreferenced model from the draft without writing', async () => {
   await waitFor(() => expect(remove.disabled).toBe(false));
   fireEvent.click(remove);
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-  expect(requests.every(request => request.dryRun)).toBe(true);
+  expect(requests.map(request => request.dryRun === true)).toEqual([true, false]);
+  expect(requests[1]).toMatchObject({ providerId: 'openai', modelId: 'spare', baseRevision: '1' });
   expect(saves).not.toHaveBeenCalled();
+  expect(config().model?.providers?.openai.models).toEqual({ model: {} });
   expect(screen.getAllByRole('button', { name: 'pilotDeckConfig.panels.models.removeModelAria' })).toHaveLength(1);
 });
 

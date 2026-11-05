@@ -111,7 +111,7 @@ export default function DeleteConfirmationModal({
   const options = usableOptions(plan, allowedReplacements);
   const blocked = plan?.blocked ?? null;
   const showReplacement = Boolean(plan?.requiresReplacement && plan.replacementOptions.length > 0);
-  const removesLocally = !target || (kind === "model" && plan !== null && !blocked && changes.length === 0);
+  const removesLocally = !target;
   const confirmDisabled = applying || (target !== null && (loading || !plan || Boolean(blocked)));
 
   const chooseReplacement = (value: string) => {

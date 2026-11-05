@@ -60,7 +60,9 @@ it('keeps catalog endpoints and protocols fixed in the settings form', () => {
   mocks.fetch.mockResolvedValue({ ok: true, json: async () => ({ tasks: [] }) });
   render(<ProviderCard providerId="openai" provider={{ protocol: 'openai', url: 'https://proxy.example/v1', apiKey: '********', models: { 'gpt-4o': {} } }} catalogEntry={findCatalogProviderById('openai')} initialEditing onSave={vi.fn()} onRemove={vi.fn()} />);
   expect(screen.queryByDisplayValue('https://proxy.example/v1')).toBeNull();
-  expect(screen.queryByRole('combobox')).toBeNull();
+  const protocol = screen.getByLabelText('pilotDeckConfig.panels.models.protocol') as HTMLSelectElement;
+  expect(protocol.value).toBe('openai');
+  expect(protocol.disabled).toBe(true);
 });
 it('keeps the simplified navigation without a primary agent page', () => {
   render(<SettingsSidebar selectedKey="general" onSelect={vi.fn()} onClose={vi.fn()} />);

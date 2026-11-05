@@ -153,6 +153,45 @@ describe("ProviderCard custom model add", () => {
     expect(onRemove).not.toHaveBeenCalled();
   });
 
+  it.each([false, true])('removes a saved model through the server (in use=%s)', async (inUse) => {
+    const changes = inUse ? [{ path: 'router.fallback.default.0', value: 'openrouter/auto', kind: 'router', action: 'remove' }] : [];
+    const plan = { target: { providerId: 'openrouter', modelId: 'auto' }, replacement: '', replacementOptions: ['openrouter/other'], requiresReplacement: false, changes, blocked: null, revision: 'rev-1' };
+    const written = { exists: true, path: '/tmp/pilotdeck.yaml', raw: 'model: {}\n', revision: 'rev-2', validation: { valid: true, errors: [], warnings: [] } };
+    mocks.authenticatedFetch.mockImplementation(async (url: string, init?: { body?: string }) => ({
+      ok: true,
+      json: async () => (url !== '/api/config/model-removal' ? {} : JSON.parse(init?.body ?? '{}').dryRun ? plan : written),
+    }));
+    const onSave = vi.fn();
+    const onRemoved = vi.fn();
+    render(<ProviderCard providerId="openrouter" provider={{ protocol: 'openai', url: catalogEntry.defaultUrl, apiKey: 'key', models: { auto: {}, other: {} } }}
+      catalogEntry={catalogEntry} onSave={onSave} onRemove={vi.fn()} onRemoved={onRemoved} />);
+    fireEvent.click(screen.getByRole('button', { name: 'settingsPage.actions.edit' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'pilotDeckConfig.panels.models.removeModelAria' })[0]);
+    const confirm = await screen.findByRole('button', { name: 'pilotDeckConfig.panels.models.deleteDialog.delete' });
+    await waitFor(() => expect((confirm as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.queryByText('pilotDeckConfig.panels.models.deleteDialog.groupRemove') !== null).toBe(inUse);
+    fireEvent.click(confirm);
+    await waitFor(() => expect(onRemoved).toHaveBeenCalledWith(written));
+    const removalCalls = mocks.authenticatedFetch.mock.calls.filter(([url]) => url === '/api/config/model-removal');
+    const bodies = removalCalls.map(([, init]) => JSON.parse(init.body));
+    expect(bodies).toEqual([
+      { providerId: 'openrouter', modelId: 'auto', replacement: '', dryRun: true },
+      { providerId: 'openrouter', modelId: 'auto', replacement: '', baseRevision: 'rev-1' },
+    ]);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it.each(['openai', 'anthropic'] as const)('shows the fixed %s protocol for catalog providers in view and edit modes', async (protocol) => {
+    render(<ProviderCard providerId="openrouter" provider={{ protocol, url: catalogEntry.defaultUrl, apiKey: 'key', models: { auto: {} } }}
+      catalogEntry={catalogEntry} onSave={vi.fn()} onRemove={vi.fn()} />);
+    const field = screen.getByLabelText('pilotDeckConfig.panels.models.protocol') as HTMLSelectElement;
+    expect(field.value).toBe(protocol);
+    expect(field.disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'settingsPage.actions.edit' }));
+    expect(field.value).toBe(protocol);
+    expect(field.disabled).toBe(true);
+  });
+
   it('discards an unsaved provider locally without asking the server', async () => {
     const onRemove = vi.fn();
     render(<ProviderCard providerId="draft" isNew provider={{ protocol: 'openai', url: '', apiKey: '', models: {} }}

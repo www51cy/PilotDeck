@@ -494,20 +494,21 @@ export default function ProviderCard({
             </label>
           )}
 
-          {editing && !effectiveCatalogEntry && (
-            <div className="connection-grid">
-              <label className="field">
-                <span>{t("pilotDeckConfig.panels.models.protocol")}</span>
-                <select
-                  value={protocol}
-                  onChange={(event) => update({ protocol: event.target.value as CatalogProviderProtocol })}
-                >
-                  <option value="openai">{t("pilotDeckConfig.panels.models.protocolOptions.openai")}</option>
-                  <option value="openai-responses">{t("pilotDeckConfig.panels.models.protocolOptions.openaiResponses")}</option>
-                  <option value="anthropic">{t("pilotDeckConfig.panels.models.protocolOptions.anthropic")}</option>
-                  <option value="google">{t("pilotDeckConfig.panels.models.protocolOptions.google")}</option>
-                </select>
-              </label>
+          <div className="connection-grid">
+            <label className="field">
+              <span>{t("pilotDeckConfig.panels.models.protocol")}</span>
+              <select
+                value={protocol}
+                disabled={fieldsDisabled || Boolean(effectiveCatalogEntry)}
+                onChange={(event) => update({ protocol: event.target.value as CatalogProviderProtocol })}
+              >
+                <option value="openai">{t("pilotDeckConfig.panels.models.protocolOptions.openai")}</option>
+                <option value="openai-responses">{t("pilotDeckConfig.panels.models.protocolOptions.openaiResponses")}</option>
+                <option value="anthropic">{t("pilotDeckConfig.panels.models.protocolOptions.anthropic")}</option>
+                <option value="google">{t("pilotDeckConfig.panels.models.protocolOptions.google")}</option>
+              </select>
+            </label>
+            {editing && !effectiveCatalogEntry && (
               <label className="field">
                 <span>{t("pilotDeckConfig.panels.models.baseUrl")}</span>
                 <input
@@ -517,8 +518,8 @@ export default function ProviderCard({
                   onChange={(event) => update({ url: event.target.value })}
                 />
               </label>
-            </div>
-          )}
+            )}
+          </div>
 
           <label className="field api-field">
             <span>
