@@ -92,42 +92,36 @@ export const createWorkspaceRequest = async (payload: CreateWorkspacePayload) =>
   return data.project;
 };
 
-const buildCloneProgressQuery = ({
-  workspacePath,
-  githubUrl,
-  tokenMode,
-  selectedGithubToken,
-  newGithubToken,
-}: CloneWorkspaceParams) => {
-  const query = new URLSearchParams({
-    path: workspacePath.trim(),
-    githubUrl: githubUrl.trim(),
+export const cloneWorkspaceWithProgress = async (
+  params: CloneWorkspaceParams,
+  handlers: CloneProgressHandlers,
+) => {
+  // Credentials travel in the POST body; the SSE URL only carries the
+  // single-use session id, so GitHub tokens never appear in URLs/logs.
+  const response = await api.post('/projects/clone-sessions', {
+    path: params.workspacePath.trim(),
+    githubUrl: params.githubUrl.trim(),
+    ...(params.tokenMode === 'stored' && params.selectedGithubToken
+      ? { githubTokenId: params.selectedGithubToken }
+      : {}),
+    ...(params.tokenMode === 'new' && params.newGithubToken.trim()
+      ? { newGithubToken: params.newGithubToken.trim() }
+      : {}),
   });
-
-  if (tokenMode === 'stored' && selectedGithubToken) {
-    query.set('githubTokenId', selectedGithubToken);
-  }
-
-  if (tokenMode === 'new' && newGithubToken.trim()) {
-    query.set('newGithubToken', newGithubToken.trim());
+  const data = await parseJson<{ cloneSessionId?: string; error?: string }>(response);
+  if (!response.ok || !data.cloneSessionId) {
+    throw new Error(data.error || 'Failed to prepare repository clone');
   }
 
   // EventSource cannot send custom headers, so the auth token is passed as query.
+  const query = new URLSearchParams({ cloneSessionId: data.cloneSessionId });
   const authToken = localStorage.getItem('auth-token');
   if (authToken) {
     query.set('token', authToken);
   }
 
-  return query.toString();
-};
-
-export const cloneWorkspaceWithProgress = (
-  params: CloneWorkspaceParams,
-  handlers: CloneProgressHandlers,
-) =>
-  new Promise<Record<string, unknown> | undefined>((resolve, reject) => {
-    const query = buildCloneProgressQuery(params);
-    const eventSource = new EventSource(`/api/projects/clone-progress?${query}`);
+  return new Promise<Record<string, unknown> | undefined>((resolve, reject) => {
+    const eventSource = new EventSource(`/api/projects/clone-progress?${query.toString()}`);
     let settled = false;
 
     const settle = (callback: () => void) => {
@@ -165,3 +159,4 @@ export const cloneWorkspaceWithProgress = (
       settle(() => reject(new Error('Connection lost during clone')));
     };
   });
+};

@@ -2,6 +2,7 @@ import express from 'express';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
+import crypto from 'crypto';
 import os from 'os';
 import {
   addProjectManually,
@@ -20,6 +21,25 @@ import { normalizePathForComparison } from '../utils/pathSafety.js';
 import { isVirtualProjectPath, resolvePilotHome } from '../utils/pilotPaths.js';
 
 const router = express.Router();
+
+// Short-lived, single-use clone sessions. EventSource only supports GET URLs,
+// so the SSE endpoint takes a session id instead of the GitHub token itself;
+// the token travels in the POST body and is never placed in a URL.
+const CLONE_SESSION_TTL_MS = 5 * 60 * 1000;
+const cloneSessions = new Map();
+
+export function createCloneSession(data, ttlMs = CLONE_SESSION_TTL_MS) {
+  const id = crypto.randomUUID();
+  cloneSessions.set(id, { ...data, expiresAt: Date.now() + ttlMs });
+  return id;
+}
+
+export function takeCloneSession(id) {
+  const session = cloneSessions.get(id);
+  cloneSessions.delete(id);
+  if (!session || session.expiresAt < Date.now()) return null;
+  return session;
+}
 
 function sanitizeGitError(message, token) {
   if (!message || !token) return message;
@@ -516,10 +536,50 @@ async function getGithubTokenById(tokenId, userId) {
 
 /**
  * Clone repository with progress streaming (SSE)
+ * POST /api/projects/clone-sessions
+ * Validate the clone request and resolve credentials in a JSON body, then
+ * return a single-use session id for the SSE clone-progress endpoint.
+ */
+router.post('/clone-sessions', async (req, res) => {
+  try {
+    const { path: workspacePath, githubUrl, githubTokenId, newGithubToken } = req.body ?? {};
+    if (!workspacePath || !githubUrl) {
+      return res.status(400).json({ error: 'path and githubUrl are required' });
+    }
+
+    const validation = await validateWorkspacePath(workspacePath);
+    if (!validation.valid) {
+      return res.status(400).json({ error: validation.error });
+    }
+
+    let githubToken = null;
+    if (githubTokenId) {
+      const token = await getGithubTokenById(parseInt(githubTokenId), req.user.id);
+      if (!token) {
+        return res.status(404).json({ error: 'GitHub token not found' });
+      }
+      githubToken = token.github_token;
+    } else if (newGithubToken) {
+      githubToken = newGithubToken;
+    }
+
+    const cloneSessionId = createCloneSession({
+      workspacePath: validation.resolvedPath,
+      githubUrl,
+      githubToken,
+      userId: req.user.id,
+    });
+    res.json({ cloneSessionId });
+  } catch (error) {
+    res.status(500).json({ error: error.message || 'Failed to prepare repository clone' });
+  }
+});
+
+/**
  * GET /api/projects/clone-progress
  */
 router.get('/clone-progress', async (req, res) => {
-  const { path: workspacePath, githubUrl, githubTokenId, newGithubToken } = req.query;
+  const { cloneSessionId } = req.query;
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -531,36 +591,13 @@ router.get('/clone-progress', async (req, res) => {
   };
 
   try {
-    if (!workspacePath || !githubUrl) {
-      sendEvent('error', { message: 'workspacePath and githubUrl are required' });
+    const session = typeof cloneSessionId === 'string' ? takeCloneSession(cloneSessionId) : null;
+    if (!session) {
+      sendEvent('error', { message: 'Clone session is invalid or has expired. Please try again.' });
       res.end();
       return;
     }
-
-    const validation = await validateWorkspacePath(workspacePath);
-    if (!validation.valid) {
-      sendEvent('error', { message: validation.error });
-      res.end();
-      return;
-    }
-
-    const absolutePath = validation.resolvedPath;
-
-    // Resolve the GitHub token before touching the filesystem. The workspace
-    // path may be an existing parent directory (e.g. ~/dev) that holds other
-    // projects, so a failed lookup must never lead to cleaning it up.
-    let githubToken = null;
-    if (githubTokenId) {
-      const token = await getGithubTokenById(parseInt(githubTokenId), req.user.id);
-      if (!token) {
-        sendEvent('error', { message: 'GitHub token not found' });
-        res.end();
-        return;
-      }
-      githubToken = token.github_token;
-    } else if (newGithubToken) {
-      githubToken = newGithubToken;
-    }
+    const { workspacePath: absolutePath, githubUrl, githubToken } = session;
 
     await fs.mkdir(absolutePath, { recursive: true });
 

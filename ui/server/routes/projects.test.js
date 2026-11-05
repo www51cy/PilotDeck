@@ -1,7 +1,7 @@
 import os from 'os';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
-import { validateWorkspacePath } from './projects.js';
+import { createCloneSession, takeCloneSession, validateWorkspacePath } from './projects.js';
 
 describe('validateWorkspacePath', () => {
   it('rejects the filesystem root and system directories', async () => {
@@ -28,5 +28,19 @@ describe('validateWorkspacePath', () => {
       const result = await validateWorkspacePath(target);
       expect(result.valid, target).toBe(true);
     }
+  });
+});
+
+describe('clone sessions', () => {
+  it('returns the stored payload exactly once', () => {
+    const id = createCloneSession({ workspacePath: '/tmp/work', githubUrl: 'https://github.com/u/r', githubToken: 'secret' });
+    expect(takeCloneSession(id)).toMatchObject({ workspacePath: '/tmp/work', githubToken: 'secret' });
+    expect(takeCloneSession(id)).toBeNull();
+  });
+
+  it('rejects unknown ids and expired sessions', () => {
+    expect(takeCloneSession('does-not-exist')).toBeNull();
+    const id = createCloneSession({ workspacePath: '/tmp/work' }, -1);
+    expect(takeCloneSession(id)).toBeNull();
   });
 });
