@@ -107,6 +107,7 @@ function repairToolResultPairing(
   warnings: MessageProjectorResult["warnings"],
 ): CanonicalMessage[] {
   const output: CanonicalMessage[] = [];
+  let lastAssistantOutputIndex = -1;
   let pendingToolCallIds: string[] = [];
   const visibleToolCallIds = new Set<string>();
   for (const message of messages) {
@@ -126,6 +127,7 @@ function repairToolResultPairing(
       }
       pendingToolCallIds = collectToolCallIds(message);
       output.push(message);
+      lastAssistantOutputIndex = output.length - 1;
       continue;
     }
 
@@ -169,10 +171,31 @@ function repairToolResultPairing(
       cleanedMessage = { ...message, content: kept };
     }
 
-    // Check for unmatched tool_calls — they'll be flushed as placeholders
-    // when the *next* assistant message arrives or at the end.
+    // Keep every call's results in its first user response. Missing results
+    // become placeholders; delayed results are merged below.
     const matched = [...seen].filter((id) => pendingSet.has(id));
-    pendingToolCallIds = pendingToolCallIds.filter((id) => !matched.includes(id));
+    if (matched.length === 0 && pendingToolCallIds.length > 0
+      && !hasMatchingToolResultAhead(messages, i + 1, pendingSet)) {
+      // Do not let an ordinary user message slip between a call and its
+      // placeholder result merely because the next assistant has not arrived.
+      injectPlaceholderResults(pendingToolCallIds, output, warnings);
+      pendingToolCallIds = [];
+    } else {
+      pendingToolCallIds = pendingToolCallIds.filter((id) => !matched.includes(id));
+    }
+
+    // Anthropic requires tool results in the first user message after their
+    // calls. Older sessions can contain ordinary user text before a delayed
+    // result, so fold that result into the first response instead of sending
+    // the invalid ordering again. Keep both the result and the intervening text.
+    const firstResponse = matched.length > 0 ? output[lastAssistantOutputIndex + 1] : undefined;
+    if (firstResponse?.role === "user") {
+      output[lastAssistantOutputIndex + 1] = {
+        ...firstResponse,
+        content: [...cleanedMessage.content, ...firstResponse.content],
+      };
+      continue;
+    }
 
     output.push(cleanedMessage);
   }
@@ -183,6 +206,19 @@ function repairToolResultPairing(
   }
 
   return output;
+}
+
+function hasMatchingToolResultAhead(
+  messages: CanonicalMessage[],
+  startIndex: number,
+  pendingIds: Set<string>,
+): boolean {
+  for (let index = startIndex; index < messages.length && messages[index]?.role !== "assistant"; index++) {
+    if (messages[index]?.content.some(block => isDirectToolResultBlock(block) && pendingIds.has(block.toolCallId))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function injectPlaceholderResults(
