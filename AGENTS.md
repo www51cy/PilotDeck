@@ -1,34 +1,25 @@
 # AGENTS.md
 
-Guidance for AI agents working in this repository.
+本文件为在本仓库中工作的 AI 智能体提供指引。
 
-## Commits
+## 提交（Commit）
 
-Follow Conventional Commits: `<type>(<scope>): <subject>`
+遵循 Conventional Commits：`<type>(<scope>): <subject>`
 
-- English imperative subject, lower case, no trailing period; header ≤ 100 chars.
-- Common types: `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `build`,
-  `ci`, `chore`, `revert`.
-- One logical change per commit.
+- 主题使用英文祈使句，首字母小写，结尾不加句号；标题总长不超过 100 字符。
+- 常用类型：`feat`、`fix`、`docs`、`refactor`、`perf`、`test`、`build`、`ci`、`chore`、`revert`。
+- 每个提交只做一件事。
 
-**The body is this repository's durable memory.** Future readers (including
-agents) reconstruct context from `git log`, not from the original chat. For
-non-trivial changes, record what the diff cannot show:
+**正文是本仓库的持久记忆。** 未来的读者（包括 AI 智能体）通过 `git log` 重建上下文，看不到当初的对话。对于非琐碎改动，记录 diff 看不出来的信息：
 
-- **Problem**: what input or operation triggers the issue.
-- **Root cause**: the mechanism, not the symptom.
-- **Fix**: the approach, non-obvious external constraints (third-party API
-  behavior, protocol requirements), and alternatives that were rejected.
-- **Verification**: which tests prove the change works.
+- **问题**：什么输入或操作触发。
+- **根因**：真正的机制，而不是表面症状。
+- **修复**：所采用的方案、非显然的外部约束（第三方 API 行为、协议要求），以及被否决的替代方案。
+- **验证**：哪些测试证明修复有效。
 
-A few lines are enough; do not pad trivial commits. Write key conclusions
-inline — chat logs and external links disappear.
+几行即可，琐碎提交不要硬凑模板。关键结论直接写进正文——聊天记录和外部链接都会消失。
 
-## Verification
+## 验证
 
-- Core (`src/`, `tests/`): run the relevant spec with
-  `npx tsx --test tests/<area>/<file>.spec.ts`; run `npm run build` before
-  pushing signature-affecting changes.
-- UI (`ui/`): `pnpm --dir ui exec vitest run <file>`,
-  `pnpm --dir ui typecheck`, `pnpm --dir ui build`.
-  The `apps/desktop` electron type errors are pre-existing and unrelated.
+- 核心（`src/`、`tests/`）：用 `npx tsx --test tests/<area>/<file>.spec.ts` 运行相关测试；涉及函数签名改动的，推送前运行 `npm run build`。
+- UI（`ui/`）：`pnpm --dir ui exec vitest run <file>`、`pnpm --dir ui typecheck`、`pnpm --dir ui build`。`apps/desktop` 的 electron 类型报错是历史遗留问题，与本次改动无关。
