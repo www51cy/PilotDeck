@@ -63,9 +63,17 @@ function isForbiddenWorkspacePath(inputPath) {
     return true;
   }
 
+  const homeDir = normalizePathForComparison(os.homedir());
+
   for (const forbidden of FORBIDDEN_PATHS) {
     const comparableForbidden = normalizePathForComparison(forbidden);
     if (comparablePath === comparableForbidden || comparablePath.startsWith(comparableForbidden + path.sep)) {
+      // The home directory itself is off-limits, but its subdirectories are
+      // valid workspace locations — the folder browser defaults to home, so
+      // forbidding descendants would reject every default-issued path.
+      if (comparableForbidden === homeDir && comparablePath !== homeDir) {
+        continue;
+      }
       // Exception: allow user-accessible temporary folders under /var.
       if (
         forbidden === '/var' &&
