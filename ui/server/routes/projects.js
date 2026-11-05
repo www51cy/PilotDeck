@@ -17,7 +17,7 @@ import {
   applyWorkCycle,
   archiveWorkCycle,
 } from '../discovery-plans.js';
-import { normalizePathForComparison } from '../utils/pathSafety.js';
+import { isPathInsideOrEqual, normalizePathForComparison } from '../utils/pathSafety.js';
 import { isVirtualProjectPath, resolvePilotHome } from '../utils/pilotPaths.js';
 
 const router = express.Router();
@@ -30,15 +30,27 @@ const cloneSessions = new Map();
 
 export function createCloneSession(data, ttlMs = CLONE_SESSION_TTL_MS) {
   const id = crypto.randomUUID();
-  cloneSessions.set(id, { ...data, expiresAt: Date.now() + ttlMs });
+  const expiresAt = Date.now() + ttlMs;
+  const expirationTimer = setTimeout(() => cloneSessions.delete(id), Math.max(0, ttlMs));
+  expirationTimer.unref?.();
+  cloneSessions.set(id, { ...data, expiresAt, expirationTimer });
   return id;
 }
 
-export function takeCloneSession(id) {
+export function takeCloneSession(id, userId) {
   const session = cloneSessions.get(id);
+  if (!session) return null;
+  if (session.expiresAt <= Date.now()) {
+    clearTimeout(session.expirationTimer);
+    cloneSessions.delete(id);
+    return null;
+  }
+  // A different authenticated user must neither use nor consume the session.
+  if (userId !== undefined && session.userId !== userId) return null;
+  clearTimeout(session.expirationTimer);
   cloneSessions.delete(id);
-  if (!session || session.expiresAt < Date.now()) return null;
-  return session;
+  const { expirationTimer, ...data } = session;
+  return data;
 }
 
 function sanitizeGitError(message, token) {
@@ -84,6 +96,12 @@ function isForbiddenWorkspacePath(inputPath) {
   }
 
   const homeDir = normalizePathForComparison(os.homedir());
+  if (comparablePath === homeDir) return true;
+
+  const pilotHome = normalizePathForComparison(resolvePilotHome(process.env));
+  if (isPathInsideOrEqual(pilotHome, comparablePath) || isPathInsideOrEqual(comparablePath, pilotHome)) {
+    return true;
+  }
 
   for (const forbidden of FORBIDDEN_PATHS) {
     const comparableForbidden = normalizePathForComparison(forbidden);
@@ -111,6 +129,24 @@ function isForbiddenWorkspacePath(inputPath) {
   return false;
 }
 
+async function resolveThroughExistingAncestor(absolutePath) {
+  const missingSegments = [];
+  let current = absolutePath;
+
+  while (true) {
+    try {
+      const realAncestor = await fs.realpath(current);
+      return path.join(realAncestor, ...missingSegments);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      const parent = path.dirname(current);
+      if (parent === current) throw error;
+      missingSegments.unshift(path.basename(current));
+      current = parent;
+    }
+  }
+}
+
 /**
  * Validates that a path is safe for workspace operations
  * @param {string} requestedPath - The path to validate
@@ -129,34 +165,10 @@ export async function validateWorkspacePath(requestedPath) {
       };
     }
 
-    // Try to resolve the real path (following symlinks)
-    let realPath;
-    try {
-      // Check if path exists to resolve real path
-      await fs.access(absolutePath);
-      realPath = await fs.realpath(absolutePath);
-    } catch (error) {
-      if (error.code === 'ENOENT') {
-        // Path doesn't exist yet - check parent directory
-        let parentPath = path.dirname(absolutePath);
-        try {
-          const parentRealPath = await fs.realpath(parentPath);
-
-          // Reconstruct the full path with real parent
-          realPath = path.join(parentRealPath, path.basename(absolutePath));
-        } catch (parentError) {
-          if (parentError.code === 'ENOENT') {
-            // Parent doesn't exist either - use the absolute path as-is
-            // We'll validate it's within allowed root
-            realPath = absolutePath;
-          } else {
-            throw parentError;
-          }
-        }
-      } else {
-        throw error;
-      }
-    }
+    // Resolve the nearest existing ancestor, then restore the missing tail.
+    // Checking only the direct parent would let a symlink followed by a
+    // non-existent intermediate directory hide a forbidden real target.
+    const realPath = await resolveThroughExistingAncestor(absolutePath);
 
     // Apply the same checks after symlink/canonical path resolution.
     if (isForbiddenWorkspacePath(realPath)) {
@@ -591,7 +603,7 @@ router.get('/clone-progress', async (req, res) => {
   };
 
   try {
-    const session = typeof cloneSessionId === 'string' ? takeCloneSession(cloneSessionId) : null;
+    const session = typeof cloneSessionId === 'string' ? takeCloneSession(cloneSessionId, req.user.id) : null;
     if (!session) {
       sendEvent('error', { message: 'Clone session is invalid or has expired. Please try again.' });
       res.end();
@@ -615,88 +627,40 @@ router.get('/clone-progress', async (req, res) => {
       // Directory doesn't exist, which is what we want
     }
 
-    let cloneUrl = githubUrl;
-    if (githubToken) {
-      try {
-        const url = new URL(githubUrl);
-        url.username = githubToken;
-        url.password = '';
-        cloneUrl = url.toString();
-      } catch (error) {
-        // SSH URL or invalid - use as-is
-      }
-    }
-
     sendEvent('progress', { message: `Cloning into '${repoName}'...` });
 
-    const gitProcess = spawn('git', ['clone', '--progress', cloneUrl, clonePath], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: {
-        ...process.env,
-        GIT_TERMINAL_PROMPT: '0'
-      },
-      windowsHide: process.platform === 'win32'
-    });
-
-    let lastError = '';
-
-    gitProcess.stdout.on('data', (data) => {
-      const message = data.toString().trim();
-      if (message) {
-        sendEvent('progress', { message });
-      }
-    });
-
-    gitProcess.stderr.on('data', (data) => {
-      const message = data.toString().trim();
-      lastError = message;
-      if (message) {
-        sendEvent('progress', { message });
-      }
-    });
-
-    gitProcess.on('close', async (code) => {
-      if (code === 0) {
-        try {
-          const project = await addProjectManually(clonePath);
-          sendEvent('complete', { project, message: 'Repository cloned successfully' });
-        } catch (error) {
-          sendEvent('error', { message: `Clone succeeded but failed to add project: ${error.message}` });
-        }
-      } else {
-        const sanitizedError = sanitizeGitError(lastError, githubToken);
-        let errorMessage = 'Git clone failed';
-        if (lastError.includes('Authentication failed') || lastError.includes('could not read Username')) {
-          errorMessage = 'Authentication failed. Please check your credentials.';
-        } else if (lastError.includes('Repository not found')) {
-          errorMessage = 'Repository not found. Please check the URL and ensure you have access.';
-        } else if (lastError.includes('already exists')) {
-          errorMessage = 'Directory already exists';
-        } else if (sanitizedError) {
-          errorMessage = sanitizedError;
-        }
+    const abortController = new AbortController();
+    const abortClone = () => abortController.abort();
+    req.once('close', abortClone);
+    try {
+      try {
+        await cloneGitHubRepository(githubUrl, clonePath, githubToken, {
+          signal: abortController.signal,
+          onProgress: (message) => {
+            const trimmed = message.trim();
+            if (trimmed) sendEvent('progress', { message: trimmed });
+          },
+        });
+      } catch (error) {
         try {
           await fs.rm(clonePath, { recursive: true, force: true });
         } catch (cleanupError) {
           console.error('Failed to clean up after clone failure:', sanitizeGitError(cleanupError.message, githubToken));
         }
-        sendEvent('error', { message: errorMessage });
+        sendEvent('error', { message: sanitizeGitError(error.message, githubToken) || 'Git clone failed' });
+        return;
       }
-      res.end();
-    });
 
-    gitProcess.on('error', (error) => {
-      if (error.code === 'ENOENT') {
-        sendEvent('error', { message: 'Git is not installed or not in PATH' });
-      } else {
-        sendEvent('error', { message: error.message });
+      try {
+        const project = await addProjectManually(clonePath);
+        sendEvent('complete', { project, message: 'Repository cloned successfully' });
+      } catch (error) {
+        sendEvent('error', { message: `Clone succeeded but failed to add project: ${error.message}` });
       }
+    } finally {
+      req.removeListener('close', abortClone);
       res.end();
-    });
-
-    req.on('close', () => {
-      gitProcess.kill();
-    });
+    }
 
   } catch (error) {
     sendEvent('error', { message: error.message });
@@ -709,22 +673,10 @@ router.get('/clone-progress', async (req, res) => {
  */
 export function cloneGitHubRepository(githubUrl, destinationPath, githubToken = null, options = {}) {
   return new Promise((resolve, reject) => {
-    let cloneUrl = githubUrl;
-
-    if (githubToken) {
-      try {
-        const url = new URL(githubUrl);
-        url.username = githubToken;
-        url.password = '';
-        cloneUrl = url.toString();
-      } catch (error) {
-        // SSH URL - use as-is
-      }
-    }
-
-    const isScpLikeSsh = /^(?:[\w.-]+@)?[\w.-]+:[^\s]+$/.test(cloneUrl);
+    const isScpLikeSsh = /^(?:[\w.-]+@)?[\w.-]+:[^\s]+$/.test(githubUrl);
+    let protocol;
     try {
-      const protocol = new URL(cloneUrl).protocol;
+      protocol = new URL(githubUrl).protocol;
       if (!['http:', 'https:', 'ssh:'].includes(protocol)) {
         return reject(new Error('Git URL must use HTTP(S) or SSH'));
       }
@@ -732,12 +684,24 @@ export function cloneGitHubRepository(githubUrl, destinationPath, githubToken = 
       if (!isScpLikeSsh) return reject(new Error('Git URL must use HTTP(S) or SSH'));
     }
 
-    const gitProcess = spawn('git', ['clone', '--progress', '--', cloneUrl, destinationPath], {
+    const env = {
+      ...process.env,
+      GIT_TERMINAL_PROMPT: '0'
+    };
+    if (githubToken && ['http:', 'https:'].includes(protocol)) {
+      // Keep credentials out of the clone URL and process arguments. Git reads
+      // this extra HTTP header from per-process config supplied via the env.
+      const existingCount = Number.parseInt(env.GIT_CONFIG_COUNT ?? '0', 10);
+      const configIndex = Number.isInteger(existingCount) && existingCount >= 0 ? existingCount : 0;
+      const authorization = Buffer.from(`${githubToken}:`).toString('base64');
+      env.GIT_CONFIG_COUNT = String(configIndex + 1);
+      env[`GIT_CONFIG_KEY_${configIndex}`] = 'http.extraHeader';
+      env[`GIT_CONFIG_VALUE_${configIndex}`] = `Authorization: Basic ${authorization}`;
+    }
+
+    const gitProcess = spawn('git', ['clone', '--progress', '--', githubUrl, destinationPath], {
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: {
-        ...process.env,
-        GIT_TERMINAL_PROMPT: '0'
-      },
+      env,
       windowsHide: process.platform === 'win32'
     });
 
@@ -780,10 +744,12 @@ export function cloneGitHubRepository(githubUrl, destinationPath, githubToken = 
     };
     gitProcess.stdout.on('data', (data) => {
       stdout += data.toString();
+      options.onProgress?.(sanitizeGitError(data.toString(), githubToken));
     });
 
     gitProcess.stderr.on('data', (data) => {
       stderr += data.toString();
+      options.onProgress?.(sanitizeGitError(data.toString(), githubToken));
     });
 
     gitProcess.on('close', (code) => {
@@ -800,7 +766,7 @@ export function cloneGitHubRepository(githubUrl, destinationPath, githubToken = 
         } else if (stderr.includes('already exists')) {
           errorMessage = 'Directory already exists';
         } else if (stderr) {
-          errorMessage = stderr;
+          errorMessage = sanitizeGitError(stderr, githubToken);
         }
 
         finish(new Error(errorMessage));

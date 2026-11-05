@@ -37,32 +37,33 @@ afterEach(async () => {
 });
 
 describe('clone with a missing GitHub token', () => {
-  it('GET /clone-progress keeps the existing parent directory', async () => {
+  it('GET /clone-progress rejects an invalid session without touching the parent directory', async () => {
     const handler = await loadRouteHandler('get', '/clone-progress');
     const events = [];
     const req = Object.assign(new EventEmitter(), {
-      query: { path: parentDir, githubUrl: 'https://github.com/owner/repo', githubTokenId: '42' },
+      query: {},
       user: { id: 1 },
     });
     const res = { setHeader() {}, flushHeaders() {}, write: (chunk) => events.push(chunk), end() {} };
 
     await handler(req, res);
 
-    expect(events.join('')).toContain('GitHub token not found');
+    expect(events.join('')).toContain('Clone session is invalid or has expired');
     await expect(fs.readFile(siblingFile, 'utf8')).resolves.toBe('keep me');
   });
 
-  it('GET /clone-progress does not create a new workspace directory', async () => {
-    const handler = await loadRouteHandler('get', '/clone-progress');
+  it('POST /clone-sessions does not create a workspace when the stored token is missing', async () => {
+    const handler = await loadRouteHandler('post', '/clone-sessions');
     const newWorkspace = path.join(baseDir, 'fresh');
-    const req = Object.assign(new EventEmitter(), {
-      query: { path: newWorkspace, githubUrl: 'https://github.com/owner/repo', githubTokenId: '42' },
+    const res = createJsonResponse();
+
+    await handler({
+      body: { path: newWorkspace, githubUrl: 'https://github.com/owner/repo', githubTokenId: '42' },
       user: { id: 1 },
-    });
-    const res = { setHeader() {}, flushHeaders() {}, write() {}, end() {} };
+    }, res);
 
-    await handler(req, res);
-
+    expect(res.statusCode).toBe(404);
+    expect(res.body).toEqual({ error: 'GitHub token not found' });
     await expect(fs.access(newWorkspace)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
