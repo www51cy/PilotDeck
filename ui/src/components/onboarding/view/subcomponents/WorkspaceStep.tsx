@@ -60,6 +60,15 @@ export default function WorkspaceStep(props: WorkspaceStepProps) {
     draft.workspaceType,
     draft.githubUrl,
   );
+  // Mirror the server-side clone destination (routes/projects.js): the input
+  // path is the parent directory and the repo is cloned into <path>/<repo>.
+  const cloneDestination = (() => {
+    const url = draft.githubUrl.trim();
+    const base = draft.workspacePath.trim().replace(/\/+$/, '');
+    if (!url || !base) return '';
+    const repoName = url.replace(/\/+$/, '').replace(/\.git$/, '').split('/').pop() || 'repository';
+    return `${base}/${repoName}`;
+  })();
   const handleAutoSelectToken = useCallback((tokenId: string) => {
     onSelectedGithubTokenChange(tokenId);
     onTokenModeChange('stored');
@@ -134,7 +143,11 @@ export default function WorkspaceStep(props: WorkspaceStepProps) {
               </button>
             </span>
             <small className="workspace-name-help">
-              {pathInvalid ? t('workspace.pathRequired') : t('workspace.pathHint')}
+              {pathInvalid
+                ? t('workspace.pathRequired')
+                : cloneDestination
+                  ? t('workspace.cloneFinalPath', { path: cloneDestination })
+                  : t('workspace.pathHint')}
             </small>
           </span>
         </label>

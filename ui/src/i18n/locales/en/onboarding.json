@@ -98,7 +98,8 @@
     "githubPlaceholder": "https://github.com/username/repository",
     "githubHint": "Provide a GitHub URL to clone a repository.",
     "startChatting": "Start chatting",
-    "createWorkspace": "Create workspace"
+    "createWorkspace": "Create workspace",
+    "cloneFinalPath": "The repository will be cloned to: {{path}}"
   },
   "actions": {
     "back": "Back",

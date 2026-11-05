@@ -98,7 +98,8 @@
     "githubPlaceholder": "https://github.com/username/repository",
     "githubHint": "提供 GitHub URL 以克隆仓库。",
     "startChatting": "直接对话",
-    "createWorkspace": "创建工作区"
+    "createWorkspace": "创建工作区",
+    "cloneFinalPath": "仓库将克隆到：{{path}}"
   },
   "actions": {
     "back": "上一步",

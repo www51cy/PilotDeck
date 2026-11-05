@@ -15,10 +15,14 @@ vi.mock('react-i18next', async () => {
 
   return {
     useTranslation: () => ({
-      t: (key: string) => {
+      t: (key: string, params?: Record<string, string>) => {
         if (key === 'buttons.cancel') return 'Cancel';
         if (key === 'buttons.close') return 'Close';
-        return lookupTranslation(key);
+        const template = lookupTranslation(key);
+        if (params) {
+          return template.replace(/\{\{(\w+)\}\}/g, (_, name: string) => params[name] ?? '');
+        }
+        return template;
       },
       i18n: { language: 'en', changeLanguage: vi.fn() },
     }),
@@ -73,6 +77,21 @@ describe('WorkspaceStep', () => {
   afterEach(() => {
     cleanup();
     delete window.pilotdeckDesktop;
+  });
+
+  it('shows the final clone destination instead of the same-name hint when a GitHub URL is set', () => {
+    renderStep({
+      draft: { ...draft, workspacePath: '/tmp/work', githubUrl: 'https://github.com/user/repo.git' },
+    });
+
+    expect(screen.getByText('The repository will be cloned to: /tmp/work/repo')).toBeTruthy();
+    expect(screen.queryByText('The workspace and project use the same name.')).toBeNull();
+  });
+
+  it('keeps the same-name hint when no GitHub URL is set', () => {
+    renderStep({ draft: { ...draft, workspacePath: '/tmp/work' } });
+
+    expect(screen.getByText('The workspace and project use the same name.')).toBeTruthy();
   });
 
   it('lets Start chatting skip workspace and GitHub validation', () => {
