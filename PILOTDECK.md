@@ -1,4 +1,4 @@
-# AGENTS.md
+# PILOTDECK.md
 
 本文件为在本仓库中工作的 AI 智能体提供指引。
 
