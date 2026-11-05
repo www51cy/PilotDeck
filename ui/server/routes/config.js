@@ -1161,6 +1161,21 @@ router.get('/provider', (_req, res) => {
   }
 });
 
+// Volcengine Ark's Coding Plan exposes Anthropic-compatible inference at
+// /api/coding/v1 but has no model-list endpoint there (it answers 401). The
+// same key lists models from the account-wide /api/v3/models endpoint, which
+// uses bearer auth instead of the Anthropic x-api-key header.
+function volcengineCodingPlanModelsEndpoint(baseUrl) {
+  try {
+    const url = new URL(baseUrl);
+    if (!/^ark[\w.-]*\.volces\.com$/i.test(url.hostname)) return null;
+    if (!/^\/api\/coding\/v\d+\/?$/i.test(url.pathname)) return null;
+    return new URL('/api/v3/models', url).href;
+  } catch {
+    return null;
+  }
+}
+
 router.post('/models', async (req, res) => {
   const { providerId, providerType, baseUrl, apiKey } = req.body || {};
   if (!baseUrl) {
@@ -1200,8 +1215,13 @@ router.post('/models', async (req, res) => {
   const timer = setTimeout(() => controller.abort(new NetworkFetchError('network_timeout', 'Model list request timed out after 10s.')), 10_000);
 
   try {
-    const urls = buildProviderModelsEndpointCandidates({ protocol, baseUrl: normalizedBaseUrl });
-    const headers = isGoogle
+    const codingPlanModelsUrl = volcengineCodingPlanModelsEndpoint(normalizedBaseUrl);
+    const urls = codingPlanModelsUrl
+      ? [codingPlanModelsUrl]
+      : buildProviderModelsEndpointCandidates({ protocol, baseUrl: normalizedBaseUrl });
+    const headers = codingPlanModelsUrl
+      ? (effectiveApiKey && effectiveApiKey !== '********' ? { Authorization: `Bearer ${effectiveApiKey}` } : {})
+      : isGoogle
       ? (effectiveApiKey && effectiveApiKey !== '********' ? { 'x-goog-api-key': effectiveApiKey } : {})
       : isAnthropic
         ? {

@@ -590,6 +590,37 @@ describe('config model-list route', () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
+  it('lists models from the v3 endpoint with bearer auth for a Volcengine Coding Plan base URL', async () => {
+    const calls = [];
+    vi.stubGlobal('fetch', vi.fn(async (url, init) => {
+      calls.push({
+        url: String(url),
+        authorization: new Headers(init?.headers).get('authorization'),
+        apiKey: new Headers(init?.headers).get('x-api-key'),
+      });
+      return jsonResponse({ data: [{ id: 'doubao-seed-2-1-lite-260915' }] });
+    }));
+
+    const { requestStatus } = await createConfigApp();
+    const response = await requestStatus('/api/config/models', {
+      method: 'POST',
+      body: JSON.stringify({
+        providerId: 'volc_ark',
+        providerType: 'anthropic',
+        baseUrl: 'https://ark.cn-beijing.volces.com/api/coding/v1',
+        apiKey: 'ark-test-key',
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(calls).toEqual([{
+      url: 'https://ark.cn-beijing.volces.com/api/v3/models',
+      authorization: 'Bearer ark-test-key',
+      apiKey: null,
+    }]);
+    expect(response.body).toEqual({ ok: true, models: [{ id: 'doubao-seed-2-1-lite-260915', displayName: 'doubao-seed-2-1-lite-260915' }] });
+  });
+
   it('preserves a non-JSON upstream authentication error status', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ...jsonResponse({}, { ok: false, status: 401, statusText: 'Unauthorized' }),
