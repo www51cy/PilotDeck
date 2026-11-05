@@ -109,23 +109,22 @@ function repairToolResultPairing(
   const output: CanonicalMessage[] = [];
   let lastAssistantOutputIndex = -1;
   let pendingToolCallIds: string[] = [];
+  let inToolExchange = false;
   const visibleToolCallIds = new Set<string>();
   for (const message of messages) {
     if (message.role !== "assistant") continue;
     for (const id of collectToolCallIds(message)) visibleToolCallIds.add(id);
   }
 
-  for (let i = 0; i < messages.length; i++) {
-    const message = messages[i];
-
+  for (const message of messages) {
     if (message.role === "assistant") {
-      // Before processing a new assistant message, flush any unmatched
-      // tool_calls from a *previous* assistant message.
+      // Close the previous exchange before starting another one. Any missing
+      // results are patched into its first user response, not appended later.
       if (pendingToolCallIds.length > 0) {
-        injectPlaceholderResults(pendingToolCallIds, output, warnings);
-        pendingToolCallIds = [];
+        injectPlaceholderResults(pendingToolCallIds, output, lastAssistantOutputIndex, warnings);
       }
       pendingToolCallIds = collectToolCallIds(message);
+      inToolExchange = pendingToolCallIds.length > 0;
       output.push(message);
       lastAssistantOutputIndex = output.length - 1;
       continue;
@@ -171,29 +170,27 @@ function repairToolResultPairing(
       cleanedMessage = { ...message, content: kept };
     }
 
-    // Keep every call's results in its first user response. Missing results
-    // become placeholders; delayed results are merged below.
     const matched = [...seen].filter((id) => pendingSet.has(id));
-    if (matched.length === 0 && pendingToolCallIds.length > 0
-      && !hasMatchingToolResultAhead(messages, i + 1, pendingSet)) {
-      // Do not let an ordinary user message slip between a call and its
-      // placeholder result merely because the next assistant has not arrived.
-      injectPlaceholderResults(pendingToolCallIds, output, warnings);
-      pendingToolCallIds = [];
-    } else {
-      pendingToolCallIds = pendingToolCallIds.filter((id) => !matched.includes(id));
-    }
+    const wasInToolExchange = inToolExchange;
+    pendingToolCallIds = pendingToolCallIds.filter((id) => !matched.includes(id));
+    inToolExchange = pendingToolCallIds.length > 0;
 
-    // Anthropic requires tool results in the first user message after their
-    // calls. Older sessions can contain ordinary user text before a delayed
-    // result, so fold that result into the first response instead of sending
-    // the invalid ordering again. Keep both the result and the intervening text.
-    const firstResponse = matched.length > 0 ? output[lastAssistantOutputIndex + 1] : undefined;
-    if (firstResponse?.role === "user") {
-      output[lastAssistantOutputIndex + 1] = {
-        ...firstResponse,
-        content: [...cleanedMessage.content, ...firstResponse.content],
-      };
+    // Like Claude's API normalization, fold consecutive user responses in an
+    // unfinished tool exchange into one response and hoist results ahead of
+    // other content. Once every result is present, a later user prompt starts
+    // a separate turn rather than being absorbed into the completed exchange.
+    // Waiting until the exchange closes before injecting placeholders lets late
+    // real results arrive without creating a separate, non-idempotent message.
+    if (wasInToolExchange && cleanedMessage.role === "user") {
+      const firstResponse = output[lastAssistantOutputIndex + 1];
+      if (firstResponse?.role === "user") {
+        output[lastAssistantOutputIndex + 1] = {
+          ...firstResponse,
+          content: hoistToolResults([...firstResponse.content, ...cleanedMessage.content]),
+        };
+      } else {
+        output.push({ ...cleanedMessage, content: hoistToolResults(cleanedMessage.content) });
+      }
       continue;
     }
 
@@ -202,28 +199,16 @@ function repairToolResultPairing(
 
   // Flush any remaining unmatched tool_calls at the end of the conversation.
   if (pendingToolCallIds.length > 0) {
-    injectPlaceholderResults(pendingToolCallIds, output, warnings);
+    injectPlaceholderResults(pendingToolCallIds, output, lastAssistantOutputIndex, warnings);
   }
 
   return output;
 }
 
-function hasMatchingToolResultAhead(
-  messages: CanonicalMessage[],
-  startIndex: number,
-  pendingIds: Set<string>,
-): boolean {
-  for (let index = startIndex; index < messages.length && messages[index]?.role !== "assistant"; index++) {
-    if (messages[index]?.content.some(block => isDirectToolResultBlock(block) && pendingIds.has(block.toolCallId))) {
-      return true;
-    }
-  }
-  return false;
-}
-
 function injectPlaceholderResults(
   toolCallIds: string[],
   output: CanonicalMessage[],
+  assistantOutputIndex: number,
   warnings: MessageProjectorResult["warnings"],
 ): void {
   const blocks: CanonicalContentBlock[] = toolCallIds.map((id) => ({
@@ -231,13 +216,28 @@ function injectPlaceholderResults(
     toolCallId: id,
     content: [{ type: "text" as const, text: "[result truncated]" }],
   }));
-  output.push({ role: "user", content: blocks });
+  const firstResponse = output[assistantOutputIndex + 1];
+  if (firstResponse?.role === "user") {
+    output[assistantOutputIndex + 1] = {
+      ...firstResponse,
+      content: hoistToolResults([...firstResponse.content, ...blocks]),
+    };
+  } else {
+    output.push({ role: "user", content: blocks });
+  }
   for (const id of toolCallIds) {
     warnings.push({
       code: "tool_result_injected",
       message: `Injected placeholder tool_result for unmatched tool_call ${id}.`,
     });
   }
+}
+
+function hoistToolResults(content: CanonicalContentBlock[]): CanonicalContentBlock[] {
+  return [
+    ...content.filter(isDirectToolResultBlock),
+    ...content.filter((block) => !isDirectToolResultBlock(block)),
+  ];
 }
 
 function collectToolCallIds(message: CanonicalMessage): string[] {

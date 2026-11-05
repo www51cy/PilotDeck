@@ -22,6 +22,32 @@ function interruptedToolExchange(id: string, userText: string): CanonicalMessage
   ];
 }
 
+function toolCalls(...ids: string[]): CanonicalMessage {
+  return {
+    role: "assistant",
+    content: ids.map(id => ({ type: "tool_call", id, name: "tool", input: {} })),
+  };
+}
+
+function toolResult(id: string): CanonicalMessage {
+  return {
+    role: "user",
+    content: [{
+      type: "tool_result",
+      toolCallId: id,
+      content: [{ type: "text", text: `result of ${id}` }],
+    }],
+  };
+}
+
+function userText(text: string): CanonicalMessage {
+  return { role: "user", content: [{ type: "text", text }] };
+}
+
+function assistantText(text: string): CanonicalMessage {
+  return { role: "assistant", content: [{ type: "text", text }] };
+}
+
 test("moves delayed tool results ahead of intervening user text without losing either", () => {
   const projector = new MessageProjector();
   const input: CanonicalMessage[] = [
@@ -59,9 +85,9 @@ test("injects a missing tool result before intervening user text", () => {
 
   const result = new MessageProjector().project({ messages: input });
 
-  assert.deepEqual(result.messages.map(message => message.role), ["assistant", "user", "user", "assistant"]);
-  assert.deepEqual(result.messages[1]?.content.map(block => block.type), ["tool_result"]);
-  assert.deepEqual(result.messages[2], input[1]);
+  assert.deepEqual(result.messages.map(message => message.role), ["assistant", "user", "assistant"]);
+  assert.deepEqual(result.messages[1]?.content.map(block => block.type), ["tool_result", "text"]);
+  assert.deepEqual(result.messages[1]?.content[1], input[1]?.content[0]);
   assert.deepEqual(result.warnings.map(warning => warning.code), ["tool_result_injected"]);
   assert.deepEqual(new MessageProjector().project({ messages: result.messages }).messages, result.messages);
 });
@@ -75,4 +101,88 @@ test("keeps an ordinary user message after a tool-free assistant message unchang
   const result = new MessageProjector().project({ messages: input });
 
   assert.deepEqual(result.messages, input);
+});
+
+test("merges a missing parallel call result into the partial first response", () => {
+  const input = [
+    toolCalls("c1", "c2"),
+    toolResult("c1"),
+    userText("intervening"),
+    assistantText("next"),
+  ];
+
+  const result = new MessageProjector().project({ messages: input });
+
+  assert.deepEqual(result.messages.map(message => message.role), ["assistant", "user", "assistant"]);
+  const response = result.messages[1]!;
+  assert.deepEqual(response.content.map(block =>
+    block.type === "tool_result" ? block.toolCallId : block.type
+  ), ["c1", "c2", "text"]);
+  assert.deepEqual(response.content[2], { type: "text", text: "intervening" });
+  const placeholder = response.content[1];
+  if (placeholder?.type === "tool_result") {
+    assert.deepEqual(placeholder.content, [{ type: "text", text: "[result truncated]" }]);
+  }
+  assert.deepEqual(result.warnings.map(warning => warning.code), ["tool_result_injected"]);
+  assert.deepEqual(new MessageProjector().project({ messages: result.messages }).messages, result.messages);
+});
+
+test("keeps a delayed parallel result in the first response and ahead of text", () => {
+  const input = [
+    toolCalls("c1", "c2"),
+    toolResult("c1"),
+    userText("intervening"),
+    toolResult("c2"),
+    assistantText("next"),
+  ];
+
+  const result = new MessageProjector().project({ messages: input });
+
+  assert.deepEqual(result.messages.map(message => message.role), ["assistant", "user", "assistant"]);
+  const response = result.messages[1]!;
+  assert.deepEqual(response.content.map(block =>
+    block.type === "tool_result" ? block.toolCallId : block.type
+  ), ["c1", "c2", "text"]);
+  assert.deepEqual(result.warnings, []);
+  assert.deepEqual(new MessageProjector().project({ messages: result.messages }).messages, result.messages);
+});
+
+test("patches a missing parallel result when the next assistant arrives immediately", () => {
+  const input = [toolCalls("c1", "c2"), toolResult("c1"), assistantText("next")];
+
+  const result = new MessageProjector().project({ messages: input });
+
+  assert.deepEqual(result.messages.map(message => message.role), ["assistant", "user", "assistant"]);
+  const response = result.messages[1]!;
+  assert.deepEqual(response.content.map(block =>
+    block.type === "tool_result" ? block.toolCallId : block.type
+  ), ["c1", "c2"]);
+  assert.deepEqual(result.warnings.map(warning => warning.code), ["tool_result_injected"]);
+  assert.deepEqual(new MessageProjector().project({ messages: result.messages }).messages, result.messages);
+});
+
+test("hoists a delayed result above leading text without reversing user text", () => {
+  const delayed: CanonicalMessage = {
+    role: "user",
+    content: [
+      { type: "text", text: "second note" },
+      {
+        type: "tool_result",
+        toolCallId: "c1",
+        content: [{ type: "text", text: "result of c1" }],
+      },
+    ],
+  };
+  const input = [toolCalls("c1"), userText("first"), delayed, assistantText("next")];
+
+  const result = new MessageProjector().project({ messages: input });
+
+  assert.deepEqual(result.messages.map(message => message.role), ["assistant", "user", "assistant"]);
+  const response = result.messages[1]!;
+  assert.deepEqual(response.content.map(block => block.type), ["tool_result", "text", "text"]);
+  assert.deepEqual(response.content.slice(1), [
+    { type: "text", text: "first" },
+    { type: "text", text: "second note" },
+  ]);
+  assert.deepEqual(new MessageProjector().project({ messages: result.messages }).messages, result.messages);
 });
