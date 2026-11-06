@@ -43,4 +43,48 @@ if ((${#existing_pids[@]} > 0)); then
 fi
 
 setsid env -C "$ROOT_DIR" npm run dev > "$LOG_FILE" 2>&1 < /dev/null &
-printf 'PilotDeck 已发起启动，PID：%s\n日志：%s\n' "$!" "$LOG_FILE"
+launcher_pid=$!
+printf 'PilotDeck 已发起启动，PID：%s\n日志：%s\n' "$launcher_pid" "$LOG_FILE"
+
+names=("前端" "后端路由" "无头服务")
+urls=(
+  "http://127.0.0.1:5173/"
+  "http://127.0.0.1:3001/"
+  "http://127.0.0.1:18789/"
+)
+http_codes=("000" "000" "000")
+deadline=$((SECONDS + 120))
+
+while ((SECONDS < deadline)); do
+  all_ready=1
+  for index in "${!urls[@]}"; do
+    [[ "${http_codes[$index]}" == "200" ]] && continue
+    http_codes[$index]="$(curl --noproxy '*' --silent --output /dev/null \
+      --connect-timeout 1 --max-time 3 --write-out '%{http_code}' \
+      "${urls[$index]}" || true)"
+    if [[ "${http_codes[$index]}" != "200" ]]; then
+      all_ready=0
+    fi
+  done
+  if ((all_ready)); then
+    break
+  fi
+  if ! kill -0 "$launcher_pid" 2>/dev/null; then
+    break
+  fi
+  sleep 1
+done
+
+failed=0
+for index in "${!urls[@]}"; do
+  printf '%s（%s）：HTTP %s\n' "${names[$index]}" "${urls[$index]}" "${http_codes[$index]}"
+  if [[ "${http_codes[$index]}" != "200" ]]; then
+    failed=1
+  fi
+done
+
+if ((failed)); then
+  printf '部分服务未在 120 秒内就绪，请查看日志：%s\n' "$LOG_FILE" >&2
+  exit 1
+fi
+printf 'PilotDeck 三个入口均已就绪。\n'
