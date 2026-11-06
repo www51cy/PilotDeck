@@ -58,7 +58,11 @@ import type { PermissionMode, PermissionRule, PermissionRuleSet } from "../../pe
 import type { AgentControlBoundaryTranscriptEntry } from "../../session/transcript/TranscriptEntry.js";
 import type { AgentSteerMessage } from "../session/SteerMailbox.js";
 import { collectToolCalls } from "./collectToolCalls.js";
-import { createMissingToolResult, ensureToolResultPairing } from "./ensureToolResultPairing.js";
+import {
+  createMissingToolResult,
+  createToolAbortedResult,
+  ensureToolResultPairing,
+} from "./ensureToolResultPairing.js";
 import { LargeFileRepair, type LargeFileRepairDecision } from "./LargeFileRepair.js";
 import { resolveOutputTokenRetryBump } from "./outputTokenRetry.js";
 import { projectToolResults } from "./projectToolResults.js";
@@ -1685,20 +1689,6 @@ export class AgentLoop {
       }
 
       yield { type: "tool_calls_detected", sessionId: input.sessionId, turnId: input.turnId, calls: toolCalls };
-      if (input.abortSignal?.aborted) {
-        const result = this.createTurnResult(input, {
-          type: "aborted",
-          stopReason: "aborted_streaming",
-          usage,
-          permissionDenials,
-          turns: turnCount,
-          startedAt,
-          finalMessage,
-        });
-        await captureTurn(result.type === "error");
-        yield { type: "turn_completed", sessionId: input.sessionId, turnId: input.turnId, result };
-        return { result, messages };
-      }
 
       let results: PilotDeckToolResult[];
       try {
@@ -1722,6 +1712,19 @@ export class AgentLoop {
         );
       }
       if (input.abortSignal?.aborted) {
+        const abortedResults = ensureToolResultPairing(
+          toolCalls,
+          results,
+          this.now,
+          "Tool execution did not produce a result before cancellation.",
+          missingToolResultRecoveryContext(),
+        );
+        const projected = projectToolResults(abortedResults);
+        messages.push(...projected);
+        for (const message of projected) {
+          yield { type: "tool_results_projected", sessionId: input.sessionId, turnId: input.turnId, message };
+          await input.onDurableMessage?.(message);
+        }
         const result = this.createTurnResult(input, {
           type: "aborted",
           stopReason: "aborted_streaming",
@@ -1777,7 +1780,6 @@ export class AgentLoop {
           this.config.permissionContext.mode = effectiveMode;
           yield { type: "mode_change_requested", sessionId: input.sessionId, turnId: input.turnId, mode: effectiveMode };
         }
-        yield { type: "tool_result", sessionId: input.sessionId, turnId: input.turnId, result };
       }
 
       const projected = projectToolResults(pairedResults);
@@ -2634,31 +2636,88 @@ export class AgentLoop {
     input: AgentLoopInput,
   ): AsyncGenerator<AgentEvent, PilotDeckToolResult[], unknown> {
     const activeSubagents = new Map<string, ActiveSubagentStatus>();
-    let results: PilotDeckToolResult[] | undefined;
-    let error: unknown;
-    let settled = false;
+    const callIds = new Set(toolCalls.map(call => call.id));
+    const resultsByCallId = new Map<string, PilotDeckToolResult>();
+    const terminalEvents: AgentEvent[] = [];
+    const batchStartedAt = this.now().toISOString();
+    let schedulerSettled = false;
+    let abortSettled = false;
 
-    const execution = this.dependencies.tools.scheduler.executeAll(toolCalls, context)
-      .then((value) => {
-        results = value;
-      }, (err) => {
-        error = err;
-      })
-      .finally(() => {
-        settled = true;
+    const settleResult = (result: PilotDeckToolResult): void => {
+      if (!callIds.has(result.toolCallId) || resultsByCallId.has(result.toolCallId)) return;
+      resultsByCallId.set(result.toolCallId, result);
+      terminalEvents.push({
+        type: "tool_result",
+        sessionId: input.sessionId,
+        turnId: input.turnId,
+        result,
       });
-
-    while (!settled) {
-      await Promise.race([execution, sleep(TOOL_EVENT_PUMP_INTERVAL_MS)]);
-      yield* this.drainToolEventBufferForSubagentStatus(input, activeSubagents);
-      if (!settled) {
-        yield* this.emitSubagentHeartbeats(input, activeSubagents);
+    };
+    const settleMissingResults = (message: string): void => {
+      for (const call of toolCalls) {
+        if (resultsByCallId.has(call.id)) continue;
+        settleResult(createMissingToolResult(call, this.now, message, {
+          cwd: this.config.cwd,
+          permissionMode: this.config.permissionMode,
+        }));
       }
-    }
+    };
+    const settleAbortedResults = (): void => {
+      for (const call of toolCalls) {
+        if (resultsByCallId.has(call.id)) continue;
+        settleResult(createToolAbortedResult(call, this.now, {
+          cwd: this.config.cwd,
+          permissionMode: this.config.permissionMode,
+        }, batchStartedAt));
+      }
+    };
+    const drainTerminalEvents = function* (): Generator<AgentEvent> {
+      yield* terminalEvents.splice(0);
+    };
 
-    yield* this.drainToolEventBufferForSubagentStatus(input, activeSubagents);
-    if (error) throw error;
-    return results ?? [];
+    let notifyAbort = (): void => {};
+    const abortNotification = new Promise<void>((resolve) => {
+      notifyAbort = resolve;
+    });
+    const onAbort = (): void => {
+      if (abortSettled) return;
+      abortSettled = true;
+      settleAbortedResults();
+      notifyAbort();
+    };
+    if (input.abortSignal?.aborted) onAbort();
+    else input.abortSignal?.addEventListener("abort", onAbort, { once: true });
+
+    const execution = abortSettled
+      ? undefined
+      : Promise.resolve()
+        .then(() => this.dependencies.tools.scheduler.executeAll(toolCalls, context, settleResult))
+        .then((returnedResults) => {
+          for (const result of returnedResults) settleResult(result);
+          settleMissingResults("Tool execution did not produce a result.");
+        }, (error) => {
+          settleMissingResults(error instanceof Error ? error.message : String(error));
+        })
+        .finally(() => {
+          schedulerSettled = true;
+        });
+
+    try {
+      while (execution && !schedulerSettled && !abortSettled) {
+        await Promise.race([execution, sleep(TOOL_EVENT_PUMP_INTERVAL_MS), abortNotification]);
+        yield* this.drainToolEventBufferForSubagentStatus(input, activeSubagents);
+        yield* drainTerminalEvents();
+        if (!schedulerSettled && !abortSettled) {
+          yield* this.emitSubagentHeartbeats(input, activeSubagents);
+        }
+      }
+
+      yield* this.drainToolEventBufferForSubagentStatus(input, activeSubagents);
+      yield* drainTerminalEvents();
+      return toolCalls.map(call => resultsByCallId.get(call.id)!);
+    } finally {
+      input.abortSignal?.removeEventListener("abort", onAbort);
+    }
   }
 
   private *drainToolEventBufferForSubagentStatus(

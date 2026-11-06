@@ -20,11 +20,14 @@ export class ConcurrentToolScheduler implements PilotDeckToolScheduler {
   async executeAll(
     calls: PilotDeckToolCall[],
     context: PilotDeckToolRuntimeContext,
+    onResult?: (result: PilotDeckToolResult) => void,
   ): Promise<PilotDeckToolResult[]> {
     if (calls.length <= 1) {
       const results: PilotDeckToolResult[] = [];
       for (const call of calls) {
-        results.push(await this.runtime.execute(call, context));
+        const result = await this.runtime.execute(call, context);
+        results.push(result);
+        onResult?.(result);
       }
       return results;
     }
@@ -49,13 +52,16 @@ export class ConcurrentToolScheduler implements PilotDeckToolScheduler {
       const promises = concurrentIndices.map(async (idx) => {
         const result = await this.runtime.execute(calls[idx], context);
         resultSlots[idx] = result;
+        onResult?.(result);
       });
       await Promise.all(promises);
     }
 
     // Phase 2: run the rest sequentially
     for (const idx of sequentialIndices) {
-      resultSlots[idx] = await this.runtime.execute(calls[idx], context);
+      const result = await this.runtime.execute(calls[idx], context);
+      resultSlots[idx] = result;
+      onResult?.(result);
     }
 
     return resultSlots as PilotDeckToolResult[];

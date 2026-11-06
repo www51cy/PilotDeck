@@ -36,6 +36,37 @@ export function ensureToolResultPairing(
   return paired;
 }
 
+export function createToolAbortedResult(
+  call: CanonicalToolCall,
+  now: () => Date = () => new Date(),
+  recoveryContext?: MissingToolResultRecoveryContext,
+  startedAt = now().toISOString(),
+): PilotDeckToolErrorResult {
+  const message = "Tool execution was cancelled because the turn was aborted.";
+  const recovery = buildToolErrorRecovery({
+    code: "tool_aborted",
+    toolName: call.name,
+    message,
+    cwd: recoveryContext?.cwd ?? ".",
+    permissionMode: recoveryContext?.permissionMode ?? "default",
+  });
+  return {
+    type: "error",
+    toolCallId: call.id,
+    toolName: call.name,
+    error: {
+      code: "tool_aborted",
+      message,
+    },
+    content: [{ type: "text", text: recovery.message }],
+    metadata: {
+      recovery: recovery.advice,
+    },
+    startedAt,
+    completedAt: now().toISOString(),
+  };
+}
+
 export function createMissingToolResult(
   call: CanonicalToolCall,
   now: () => Date = () => new Date(),

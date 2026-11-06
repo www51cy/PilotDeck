@@ -9,10 +9,13 @@ export class SequentialToolScheduler implements PilotDeckToolScheduler {
   async executeAll(
     calls: PilotDeckToolCall[],
     context: PilotDeckToolRuntimeContext,
+    onResult?: (result: PilotDeckToolResult) => void,
   ): Promise<PilotDeckToolResult[]> {
     const results: PilotDeckToolResult[] = [];
     for (const call of calls) {
-      results.push(await this.runtime.execute(call, context));
+      const result = await this.runtime.execute(call, context);
+      results.push(result);
+      onResult?.(result);
     }
     return results;
   }
