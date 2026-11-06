@@ -521,6 +521,7 @@ function MessagesPaneV2({
     openSubagentActivity?.state,
     sessionRequestParams,
   );
+  const closeSubagentDetail = useCallback(() => setOpenSubagentId(null), []);
   const renderableMessages = useMemo(
     () => {
       const filtered = visibleMessages.filter((message) =>
@@ -1509,7 +1510,7 @@ function MessagesPaneV2({
           onFileOpen={onFileOpen}
           showThinking={showThinking}
           isRunning={isOpenSubagentRunning}
-          onClose={() => setOpenSubagentId(null)}
+          onClose={closeSubagentDetail}
         />
       ) : null}
       </div>

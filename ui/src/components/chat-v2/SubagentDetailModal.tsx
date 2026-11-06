@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { memo, useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { X, Loader2 } from 'lucide-react';
@@ -22,7 +22,7 @@ interface SubagentDetailModalProps {
   onClose: () => void;
 }
 
-export default function SubagentDetailModal({
+function SubagentDetailModal({
   subagentId,
   messages,
   isLoading,
@@ -124,3 +124,5 @@ export default function SubagentDetailModal({
 
   return createPortal(modal, document.body);
 }
+
+export default memo(SubagentDetailModal);

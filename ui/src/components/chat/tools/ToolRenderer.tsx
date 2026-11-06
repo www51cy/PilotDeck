@@ -240,6 +240,16 @@ const ToolRendererInner: React.FC<ToolRendererProps> = ({
       {},
     ));
 
+    // Closed text and file-list results can be very large. Keep them out of
+    // React/DOM until expansion changes; interactive tools are unaffected.
+    const deferCollapsedContent = mode === 'result'
+      && !contentOnly
+      && Boolean(expansionKey && onToolSectionExpandedChange)
+      && !(expanded ?? defaultOpen)
+      && (displayConfig.contentType === 'text'
+        || displayConfig.contentType === 'markdown'
+        || displayConfig.contentType === 'file-list');
+
     // Build the content component based on contentType
     let contentComponent: React.ReactNode = null;
 
@@ -261,17 +271,21 @@ const ToolRendererInner: React.FC<ToolRendererProps> = ({
         break;
 
       case 'markdown':
-        contentComponent = <MarkdownContent content={contentProps.content || ''} onFileOpen={onFileOpen} />;
+        if (!deferCollapsedContent) {
+          contentComponent = <MarkdownContent content={contentProps.content || ''} onFileOpen={onFileOpen} />;
+        }
         break;
 
       case 'file-list':
-        contentComponent = (
-          <FileListContent
-            files={contentProps.files || []}
-            onFileClick={onFileOpen}
-            title={contentProps.title}
-          />
-        );
+        if (!deferCollapsedContent) {
+          contentComponent = (
+            <FileListContent
+              files={contentProps.files || []}
+              onFileClick={onFileOpen}
+              title={contentProps.title}
+            />
+          );
+        }
         break;
 
       case 'todo-list':
@@ -300,12 +314,14 @@ const ToolRendererInner: React.FC<ToolRendererProps> = ({
         break;
 
       case 'text':
-        contentComponent = (
-          <TextContent
-            content={contentProps.content || ''}
-            format={contentProps.format || 'plain'}
-          />
-        );
+        if (!deferCollapsedContent) {
+          contentComponent = (
+            <TextContent
+              content={contentProps.content || ''}
+              format={contentProps.format || 'plain'}
+            />
+          );
+        }
         break;
 
       case 'plan-card':

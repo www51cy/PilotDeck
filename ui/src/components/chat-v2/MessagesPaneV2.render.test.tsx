@@ -16,10 +16,13 @@ import { getContextStatus } from './ComposerV2';
 import * as api from '../../utils/api';
 import { attachmentDisplayMetadata, rememberUploadedPreview } from '../chat/utils/uploadedAttachmentPreview';
 
+const subagentModalCloseCallbacks = vi.hoisted(() => [] as Array<() => void>);
+
 vi.mock('./SubagentDetailModal', () => ({
-  default: ({ isRunning }: { isRunning?: boolean }) => (
-    <div data-testid="subagent-detail-modal" data-running={isRunning ? 'true' : 'false'} />
-  ),
+  default: ({ isRunning, onClose }: { isRunning?: boolean; onClose: () => void }) => {
+    subagentModalCloseCallbacks.push(onClose);
+    return <div data-testid="subagent-detail-modal" data-running={isRunning ? 'true' : 'false'} />;
+  },
 }));
 
 beforeAll(() => {
@@ -38,6 +41,7 @@ beforeAll(() => {
 
 afterEach(() => {
   cleanup();
+  subagentModalCloseCallbacks.length = 0;
 });
 
 describe('ThinkingBlock phase transitions', () => {
@@ -555,18 +559,19 @@ describe('MessagesPaneV2 render behavior', () => {
       },
     ];
 
-    renderPane({
+    const activityMessages: ChatMessage[] = [{
+      id: 'new-subagent-activity',
+      type: 'assistant',
+      timestamp: now,
+      isAgentActivity: true,
+      activityId: 'subagent:subagent-new',
+      parentRunId: 'run-new',
+      phase: 'subagent',
+      state: 'running',
+    }];
+    const view = renderPane({
       messages,
-      activityMessages: [{
-        id: 'new-subagent-activity',
-        type: 'assistant',
-        timestamp: now,
-        isAgentActivity: true,
-        activityId: 'subagent:subagent-new',
-        parentRunId: 'run-new',
-        phase: 'subagent',
-        state: 'running',
-      }],
+      activityMessages,
       isAssistantWorking: true,
       sessionRuntimeState: 'running',
       activeRunId: 'run-new',
@@ -578,6 +583,17 @@ describe('MessagesPaneV2 render behavior', () => {
     expect(within(card as HTMLElement).queryByText('subagent.status.stopped')).toBeNull();
     fireEvent.click(card as HTMLElement);
     expect(screen.getByTestId('subagent-detail-modal').getAttribute('data-running')).toBe('true');
+
+    const closeCallback = subagentModalCloseCallbacks[subagentModalCloseCallbacks.length - 1];
+    view.rerender(createPaneElement({
+      messages,
+      activityMessages,
+      isAssistantWorking: true,
+      sessionRuntimeState: 'running',
+      activeRunId: 'run-new',
+      workingStatus: { text: 'Working...', tokens: 0, can_interrupt: true },
+    }));
+    expect(subagentModalCloseCallbacks[subagentModalCloseCallbacks.length - 1]).toBe(closeCallback);
   });
 
   it('uses a running activity from the active parent run for the live status', () => {
