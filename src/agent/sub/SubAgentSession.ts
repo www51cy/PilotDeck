@@ -45,8 +45,13 @@ import {
   cloneReadFileState,
   cloneWriteSnapshots,
 } from "./contextInheritance.js";
+import {
+  SubagentFailureError,
+  SubagentFailureGuard,
+} from "./SubagentFailureGuard.js";
 
 
+const DEFAULT_SUBAGENT_MAX_TURNS = 12;
 const SUMMARY_FIELDS = ["Scope", "Result", "Key files", "Files changed", "Issues"] as const;
 
 export type SubAgentSessionOptions = {
@@ -69,7 +74,7 @@ export type SubAgentSessionOptions = {
   subagentSessionId: string;
   /** Stable subagent UUID — mirrors C3 sidechain naming. */
   subagentId: string;
-  /** Optional cap on AgentLoop turns inside the fork. Unbounded when omitted. */
+  /** Optional cap on AgentLoop turns inside the fork. Defaults to 12. */
   maxTurns?: number;
   /** Abort signal forwarded to the child loop. */
   abortSignal?: AbortSignal;
@@ -137,6 +142,13 @@ export class SubAgentSession {
     let last: AgentLoopRunResult | undefined;
     const inheritedArtifacts = new Map<string, string>();
     const turnId = `${this.options.subagentId}-t0`;
+    const failureGuard = new SubagentFailureGuard();
+    const failureAbort = new AbortController();
+    const abortSignal = this.options.abortSignal
+      ? AbortSignal.any([this.options.abortSignal, failureAbort.signal])
+      : failureAbort.signal;
+    const maxTurns = this.options.maxTurns ?? DEFAULT_SUBAGENT_MAX_TURNS;
+    let failure: SubagentFailureError | undefined;
     if (this.options.sidechainTranscript) {
       await this.options.sidechainTranscript.recordAcceptedInput(
         this.options.subagentSessionId,
@@ -148,8 +160,8 @@ export class SubAgentSession {
       sessionId: this.options.subagentSessionId,
       turnId,
       messages,
-      maxTurns: this.options.maxTurns,
-      abortSignal: this.options.abortSignal,
+      maxTurns,
+      abortSignal,
     });
     while (true) {
       const next = await generator.next();
@@ -158,6 +170,11 @@ export class SubAgentSession {
         break;
       }
       const event = next.value;
+      const detectedFailure = failureGuard.observe(event);
+      if (detectedFailure) {
+        failure = detectedFailure;
+        failureAbort.abort(detectedFailure);
+      }
       if (event.type === "tool_result") {
         const artifact = await this.options.parentDependencies.inheritSubagentToolResult?.({
           parentSessionId: this.options.parentSessionId,
@@ -180,6 +197,18 @@ export class SubAgentSession {
     }
     if (!last) {
       throw new Error("SubAgentSession: AgentLoop returned no result");
+    }
+    if (this.options.abortSignal?.aborted) {
+      throw new Error(
+        `SubAgentSession: subagent turn aborted (${last.result.stopReason})`,
+      );
+    }
+    if (failure) throw failure;
+    if (last.result.type === "max_turns") {
+      throw new SubagentFailureError(
+        "subagent_max_turns_exceeded",
+        `Subagent exceeded its ${maxTurns}-turn limit before producing a final report. Break the task into smaller steps or retry with a different approach.`,
+      );
     }
     if (last.result.type === "aborted") {
       throw new Error(

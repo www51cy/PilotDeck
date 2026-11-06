@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createAgentTool } from "../../../src/tool/builtin/agent.js";
+import { SubagentFailureError } from "../../../src/agent/sub/SubagentFailureGuard.js";
+import { PilotDeckToolRuntimeError } from "../../../src/tool/protocol/errors.js";
 import type {
   PilotDeckSubagentForkApi,
   PilotDeckToolModelClient,
@@ -76,6 +78,28 @@ test("agent tool defaults general-purpose to explore in ask mode", async () => {
 
   assert.equal(result.data?.subagentType, "explore");
   assert.deepEqual(calls, ["explore"]);
+});
+
+test("agent tool delivers the specific subagent fuse error to its parent", async () => {
+  const fork = createFork([]);
+  fork.fork = async () => {
+    throw new SubagentFailureError(
+      "subagent_no_progress_loop",
+      "three identical failed batches",
+    );
+  };
+  const tool = createAgentTool();
+
+  await assert.rejects(tool.execute(
+    { description: "inspect code", prompt: "inspect" },
+    baseContext(fork),
+  ), (error: unknown) => {
+    assert.ok(error instanceof PilotDeckToolRuntimeError);
+    assert.equal(error.code, "tool_execution_failed");
+    assert.equal(error.details?.errorCode, "subagent_no_progress_loop");
+    assert.match(error.message, /three identical failed batches/);
+    return true;
+  });
 });
 
 test("agent tool preserves unknown custom fallback subagent names", async () => {

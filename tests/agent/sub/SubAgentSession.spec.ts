@@ -18,6 +18,7 @@ import {
   SubAgentSession,
   type SubAgentSessionOptions,
 } from "../../../src/agent/sub/SubAgentSession.js";
+import { SubagentFailureError } from "../../../src/agent/sub/SubagentFailureGuard.js";
 import {
   SUBAGENT_DEFINITIONS,
   type SubagentDefinition,
@@ -36,9 +37,10 @@ import {
   type PilotDeckToolDefinition,
   type PilotDeckToolRuntimeContext,
 } from "../../../src/tool/index.js";
-import type { CanonicalMessage } from "../../../src/model/index.js";
+import type { CanonicalMessage, CanonicalToolCall } from "../../../src/model/index.js";
 import { loadPilotConfig } from "../../../src/pilot/index.js";
 import { PilotConfigError } from "../../../src/pilot/config/types.js";
+import { PilotDeckToolRuntimeError } from "../../../src/tool/protocol/errors.js";
 
 const FINAL_REPORT = [
   "Scope: inspected inputs",
@@ -87,6 +89,63 @@ function createNoopTool(
       content: [{ type: "text", text: "ok" }],
       data: {},
     }),
+  };
+}
+
+function createOutcomeTool(
+  name: string,
+  attempts: unknown[],
+  outcome: (input: unknown, attempt: number) => string | undefined,
+): PilotDeckToolDefinition {
+  return {
+    ...createNoopTool(name, () => true),
+    execute: async (input) => {
+      attempts.push(input);
+      const errorMessage = outcome(input, attempts.length);
+      if (errorMessage !== undefined) {
+        throw new PilotDeckToolRuntimeError("tool_execution_failed", errorMessage);
+      }
+      return {
+        content: [{ type: "text", text: "ok" }],
+        data: {},
+      };
+    },
+  };
+}
+
+type ScriptedCall = Pick<CanonicalToolCall, "name" | "input">;
+
+function createScriptedToolRouter(script: ScriptedCall[][]): {
+  router: AgentRouterRuntime;
+  requestCount: () => number;
+} {
+  const base = createRouter();
+  let requestCount = 0;
+  return {
+    router: {
+      ...base,
+      execute: async function* () {
+        const batch = script[requestCount] ?? [];
+        requestCount++;
+        yield { type: "message_start", role: "assistant" };
+        if (batch.length === 0) {
+          yield { type: "text_delta", text: FINAL_REPORT };
+          yield { type: "message_end", finishReason: "stop" };
+          return;
+        }
+        for (const [index, call] of batch.entries()) {
+          const toolCall = {
+            id: `scripted-${requestCount}-${index}`,
+            name: call.name,
+            input: call.input,
+          };
+          yield { type: "tool_call_start", id: toolCall.id, name: toolCall.name };
+          yield { type: "tool_call_end", toolCall };
+        }
+        yield { type: "message_end", finishReason: "tool_call" };
+      },
+    } as AgentRouterRuntime,
+    requestCount: () => requestCount,
   };
 }
 
@@ -153,7 +212,10 @@ function parentConfig(): AgentRuntimeConfig {
   };
 }
 
-function createSubagentForkHarness(router: AgentRouterRuntime): {
+function createSubagentForkHarness(
+  router: AgentRouterRuntime,
+  registry = new ToolRegistry(),
+): {
   events: AgentEvent[];
   fork: PilotDeckSubagentForkApi;
 } {
@@ -161,7 +223,7 @@ function createSubagentForkHarness(router: AgentRouterRuntime): {
   const loop = new AgentLoop(parentConfig(), {
     router,
     tools: {
-      registry: new ToolRegistry(),
+      registry,
       scheduler: {} as never,
     },
     eventEmitter: (event) => {
@@ -465,6 +527,157 @@ test("subagent timeout remains a failure instead of a cancellation", async () =>
   assert.ok(completed && completed.type === "subagent_completed");
   assert.equal(completed.success, false);
   assert.equal(completed.aborted, false);
+});
+
+test("subagent default turn cap returns a specific failure instead of a report", async () => {
+  const attempts: unknown[] = [];
+  const registry = new ToolRegistry();
+  registry.register(createOutcomeTool("succeed", attempts, () => undefined));
+  const scripted = createScriptedToolRouter(
+    Array.from({ length: 12 }, () => [{ name: "succeed", input: { command: "next" } }]),
+  );
+  const { events, fork } = createSubagentForkHarness(scripted.router, registry);
+
+  await assert.rejects(fork.fork({
+    definitionId: "general-purpose",
+    directive: "Keep using tools.",
+    subagentId: "subagent-max-turns",
+    timeoutMs: 60_000,
+  }), (error: unknown) => {
+    assert.ok(error instanceof SubagentFailureError);
+    assert.equal(error.code, "subagent_max_turns_exceeded");
+    assert.match(error.message, /12-turn limit/);
+    return true;
+  });
+
+  assert.equal(attempts.length, 12);
+  assert.equal(scripted.requestCount(), 12);
+  const completed = events.find(event => event.type === "subagent_completed");
+  assert.ok(completed && completed.type === "subagent_completed");
+  assert.equal(completed.success, false);
+  assert.equal(completed.aborted, false);
+});
+
+test("three identical all-failed tool batches trip the no-progress fuse", async () => {
+  const attempts: unknown[] = [];
+  const registry = new ToolRegistry();
+  registry.register(createOutcomeTool("fail", attempts, () => "exit 128: same failure"));
+  const scripted = createScriptedToolRouter(
+    Array.from({ length: 4 }, () => [{ name: "fail", input: { command: "git status" } }]),
+  );
+  const { events, fork } = createSubagentForkHarness(scripted.router, registry);
+
+  await assert.rejects(fork.fork({
+    definitionId: "general-purpose",
+    directive: "Retry the failing command.",
+    subagentId: "subagent-no-progress",
+    timeoutMs: 60_000,
+  }), (error: unknown) => {
+    assert.ok(error instanceof SubagentFailureError);
+    assert.equal(error.code, "subagent_no_progress_loop");
+    assert.match(error.message, /3 consecutive identical tool batches/);
+    return true;
+  });
+
+  assert.equal(attempts.length, 3);
+  assert.equal(scripted.requestCount(), 3);
+  const completed = events.find(event => event.type === "subagent_completed");
+  assert.ok(completed && completed.type === "subagent_completed");
+  assert.equal(completed.success, false);
+  assert.equal(completed.aborted, false);
+});
+
+test("a successful third retry is allowed to finish", async () => {
+  const attempts: unknown[] = [];
+  const registry = new ToolRegistry();
+  registry.register(createOutcomeTool("flaky", attempts, (_input, attempt) =>
+    attempt < 3 ? "temporary failure" : undefined,
+  ));
+  const call = { name: "flaky", input: { command: "same retry" } };
+  const scripted = createScriptedToolRouter([[call], [call], [call], []]);
+  const { fork } = createSubagentForkHarness(scripted.router, registry);
+
+  const report = await fork.fork({
+    definitionId: "general-purpose",
+    directive: "Retry until the transient failure clears.",
+    subagentId: "subagent-retry-success",
+    timeoutMs: 60_000,
+  });
+
+  assert.equal(report.markdown, FINAL_REPORT);
+  assert.equal(attempts.length, 3);
+  assert.equal(scripted.requestCount(), 4);
+});
+
+test("changing the call input resets the repeated-failure count", async () => {
+  const attempts: unknown[] = [];
+  const registry = new ToolRegistry();
+  registry.register(createOutcomeTool("probe", attempts, input =>
+    (input as { path: string }).path === "c" ? undefined : "same failure",
+  ));
+  const a = { name: "probe", input: { path: "a" } };
+  const b = { name: "probe", input: { path: "b" } };
+  const c = { name: "probe", input: { path: "c" } };
+  const scripted = createScriptedToolRouter([[a], [a], [b], [b], [c], []]);
+  const { fork } = createSubagentForkHarness(scripted.router, registry);
+
+  const report = await fork.fork({
+    definitionId: "general-purpose",
+    directive: "Change inputs while investigating.",
+    subagentId: "subagent-changed-input",
+    timeoutMs: 60_000,
+  });
+
+  assert.equal(report.markdown, FINAL_REPORT);
+  assert.equal(attempts.length, 5);
+});
+
+test("changing the error resets the repeated-failure count", async () => {
+  const attempts: unknown[] = [];
+  const registry = new ToolRegistry();
+  registry.register(createOutcomeTool("probe", attempts, (_input, attempt) => {
+    if (attempt <= 2) return "failure a";
+    if (attempt <= 4) return "failure b";
+    return undefined;
+  }));
+  const call = { name: "probe", input: { path: "same" } };
+  const scripted = createScriptedToolRouter([[call], [call], [call], [call], [call], []]);
+  const { fork } = createSubagentForkHarness(scripted.router, registry);
+
+  const report = await fork.fork({
+    definitionId: "general-purpose",
+    directive: "Change the failing path while investigating.",
+    subagentId: "subagent-changed-error",
+    timeoutMs: 60_000,
+  });
+
+  assert.equal(report.markdown, FINAL_REPORT);
+  assert.equal(attempts.length, 5);
+});
+
+test("a successful sibling prevents an all-failed batch from tripping the fuse", async () => {
+  const failures: unknown[] = [];
+  const successes: unknown[] = [];
+  const registry = new ToolRegistry();
+  registry.register(createOutcomeTool("always_fails", failures, () => "same failure"));
+  registry.register(createOutcomeTool("always_succeeds", successes, () => undefined));
+  const batch = [
+    { name: "always_fails", input: { command: "same" } },
+    { name: "always_succeeds", input: { command: "same" } },
+  ];
+  const scripted = createScriptedToolRouter([batch, batch, batch, []]);
+  const { fork } = createSubagentForkHarness(scripted.router, registry);
+
+  const report = await fork.fork({
+    definitionId: "general-purpose",
+    directive: "Run a mixed batch.",
+    subagentId: "subagent-mixed-batch",
+    timeoutMs: 60_000,
+  });
+
+  assert.equal(report.markdown, FINAL_REPORT);
+  assert.equal(failures.length, 3);
+  assert.equal(successes.length, 3);
 });
 
 test("explore registry ignores an unallowed dynamic execute_code tool without probing it", () => {

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { CanonicalModelRequest, CanonicalUsage } from "../../model/index.js";
 import type { PermissionResult } from "../../permission/index.js";
 import { SUBAGENT_DEFINITIONS } from "../../agent/sub/builtinSubagentTypes.js";
+import { SubagentFailureError } from "../../agent/sub/SubagentFailureGuard.js";
 import { PilotDeckToolRuntimeError } from "../protocol/errors.js";
 import type {
   PilotDeckSubagentForkApi,
@@ -360,7 +361,11 @@ async function runFullFork(args: {
     throw new PilotDeckToolRuntimeError(
       "tool_execution_failed",
       `agent subagent failed: ${message}`,
-      { errorCode: "subagent_execution_failed" },
+      {
+        errorCode: error instanceof SubagentFailureError
+          ? error.code
+          : "subagent_execution_failed",
+      },
     );
   }
   if (context.abortSignal?.aborted) {
