@@ -354,6 +354,8 @@ export type WebReadSessionMessagesResult = {
   stream?: GatewayActiveTurnSnapshot;
   messages: import("./webMessage.js").WebMessage[];
   nextCursor?: string;
+  /** Absolute index of this backward window's head when earlier messages exist. */
+  prevCursor?: string;
   total?: number;
   tokenUsage?: Record<string, unknown>;
   session: WebSessionInfo;

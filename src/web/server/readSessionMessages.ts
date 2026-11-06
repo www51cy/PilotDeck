@@ -115,15 +115,31 @@ export async function readWebSessionMessages(
 
   const offset = parseCursor(input.cursor);
   const limit = input.limit ?? allMessages.length;
-  const sliceEnd = limit === 0 ? allMessages.length : offset + limit;
-  const slice = allMessages.slice(offset, sliceEnd);
+  const backward = input.direction === "backward";
+  const sliceEnd = backward
+    ? input.cursor === undefined
+      ? allMessages.length
+      : Math.min(offset, allMessages.length)
+    : limit === 0
+      ? allMessages.length
+      : offset + limit;
+  const sliceStart = backward
+    ? limit === 0
+      ? 0
+      : Math.max(0, sliceEnd - limit)
+    : offset;
+  const slice = allMessages.slice(sliceStart, sliceEnd);
 
   return {
     ...(input.includeModelContext ? { modelContext } : {}),
     messages: slice,
     nextCursor:
-      input.limit && offset + slice.length < allMessages.length
+      !backward && input.limit && offset + slice.length < allMessages.length
         ? String(offset + slice.length)
+        : undefined,
+    prevCursor:
+      backward && input.limit && sliceStart > 0
+        ? String(sliceStart)
         : undefined,
     total: allMessages.length,
     tokenUsage: tokenUsageFromTranscript(entries, options),

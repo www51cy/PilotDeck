@@ -559,3 +559,58 @@ describe('useSessionStore server request ordering', () => {
     ]);
   });
 });
+
+describe('useSessionStore backward history windows', () => {
+  beforeEach(() => {
+    mocks.authenticatedFetch.mockReset();
+    mocks.readAgentStatusErrorFromResponse.mockReset();
+  });
+
+  afterEach(cleanup);
+
+  it('loads the latest window, prepends older pages without duplicates, and keeps them across tail refreshes', async () => {
+    const messages = Array.from({ length: 5 }, (_, index) => serverMessage(`m${index + 1}`, `Message ${index + 1}`));
+    mocks.authenticatedFetch
+      .mockResolvedValueOnce(response({ messages: messages.slice(2, 4), total: 4, hasMore: true, prevCursor: '2' }))
+      .mockResolvedValueOnce(response({ messages: messages.slice(0, 2), total: 4, hasMore: false }))
+      .mockResolvedValueOnce(response({ messages: messages.slice(3, 5), total: 5, hasMore: true, prevCursor: '3' }));
+
+    const { result } = renderHook(() => useSessionStore());
+    await act(async () => {
+      await result.current.fetchFromServer('session-1', { limit: 2, direction: 'backward' });
+    });
+    expect(mocks.authenticatedFetch.mock.calls[0][0]).toContain('direction=backward');
+    expect(result.current.getSessionSlot('session-1')).toMatchObject({ headOffset: 2, hasMore: true, total: 4 });
+
+    await act(async () => { await result.current.fetchMore('session-1', { limit: 2 }); });
+    expect(mocks.authenticatedFetch.mock.calls[1][0]).toContain('offset=2');
+    expect(mocks.authenticatedFetch.mock.calls[1][0]).toContain('direction=backward');
+    expect(result.current.getSessionSlot('session-1')?.serverMessages.map(message => message.id))
+      .toEqual(['m1', 'm2', 'm3', 'm4']);
+    expect(result.current.getSessionSlot('session-1')).toMatchObject({ headOffset: 0, hasMore: false });
+
+    await act(async () => { await result.current.refreshFromServer('session-1', { limit: 2 }); });
+    expect(mocks.authenticatedFetch.mock.calls[2][0]).toContain('limit=2');
+    expect(mocks.authenticatedFetch.mock.calls[2][0]).toContain('direction=backward');
+    expect(result.current.getSessionSlot('session-1')?.serverMessages.map(message => message.id))
+      .toEqual(['m1', 'm2', 'm3', 'm4', 'm5']);
+    expect(result.current.getSessionSlot('session-1')).toMatchObject({ headOffset: 0, hasMore: false, total: 5 });
+  });
+
+  it('deduplicates an overlapping older page by message id', async () => {
+    const messages = Array.from({ length: 4 }, (_, index) => serverMessage(`m${index + 1}`, `Message ${index + 1}`));
+    mocks.authenticatedFetch
+      .mockResolvedValueOnce(response({ messages: messages.slice(2), total: 4, hasMore: true, prevCursor: '2' }))
+      .mockResolvedValueOnce(response({ messages: messages.slice(1, 3), total: 4, hasMore: true, prevCursor: '1' }));
+
+    const { result } = renderHook(() => useSessionStore());
+    await act(async () => {
+      await result.current.fetchFromServer('session-1', { limit: 2, direction: 'backward' });
+    });
+    await act(async () => { await result.current.fetchMore('session-1', { limit: 2 }); });
+
+    expect(result.current.getSessionSlot('session-1')?.serverMessages.map(message => message.id))
+      .toEqual(['m2', 'm3', 'm4']);
+    expect(result.current.getSessionSlot('session-1')).toMatchObject({ headOffset: 1, hasMore: true });
+  });
+});

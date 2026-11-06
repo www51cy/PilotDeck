@@ -41,6 +41,7 @@ router.get('/:sessionId/messages', async (req, res) => {
       ? parseInt(limitParam, 10)
       : null;
     const offset = parseInt(req.query.offset || '0', 10);
+    const direction = req.query.direction === 'backward' ? 'backward' : undefined;
     const includeModelContext = req.query.includeModelContext === 'true' || req.query.includeModelContext === 'summary';
 
     const result = await withPilotDeckGatewayReadRetry((gateway) => gateway.readSessionMessages({
@@ -49,6 +50,7 @@ router.get('/:sessionId/messages', async (req, res) => {
       ...(includeModelContext ? { includeModelContext: true } : {}),
       limit: limit ?? undefined,
       cursor: offset > 0 ? String(offset) : undefined,
+      ...(direction ? { direction } : {}),
       ...(typeof req.query.sessionKind === 'string' && req.query.sessionKind
         ? { sessionKind: req.query.sessionKind }
         : {}),
@@ -62,7 +64,9 @@ router.get('/:sessionId/messages', async (req, res) => {
 
     const messages = result.messages.map((message) => mapWebMessageToNormalized(message, sessionId));
     const totalKnown = typeof result.total === 'number' ? result.total : messages.length + offset;
-    const hasMore = result.nextCursor !== undefined && result.nextCursor !== null;
+    const hasMore = direction === 'backward'
+      ? result.prevCursor !== undefined && result.prevCursor !== null
+      : result.nextCursor !== undefined && result.nextCursor !== null;
 
     return res.json({
       messages,
@@ -73,6 +77,7 @@ router.get('/:sessionId/messages', async (req, res) => {
       } } : {}),
       total: totalKnown,
       hasMore,
+      ...(result.prevCursor !== undefined ? { prevCursor: result.prevCursor } : {}),
       offset,
       limit,
       ...(result.tokenUsage ? { tokenUsage: result.tokenUsage } : {}),
