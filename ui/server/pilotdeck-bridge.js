@@ -102,6 +102,7 @@ const visibleFailureAgentStatusEvents = new Set([
     'session_busy',
     'gateway_bridge_error',
     'gateway_stream_ended_without_completion',
+    'task_result_unavailable',
     'web_http_request_failed',
     'project_unavailable',
     'config_invalid',
@@ -114,6 +115,7 @@ const visibleFailureAgentStatusEvents = new Set([
 const nonTerminalParentErrorCodes = new Set([
     'session_busy',
 ]);
+const taskResultStatuses = new Set(['success', 'max_turns', 'aborted', 'failed', 'unknown']);
 
 function isTerminalParentError(code) {
     return !nonTerminalParentErrorCodes.has(String(code || ''));
@@ -1146,6 +1148,36 @@ export function gatewayEventToFrames(event, sessionId, provider) {
                     usage: event.usage,
                 }),
             ];
+        case 'task_result': {
+            const succeeded = event.status === 'success';
+            const complete = createNormalizedMessage({
+                ...base,
+                kind: 'complete',
+                exitCode: succeeded ? 0 : 1,
+                success: succeeded,
+                taskStatus: event.status,
+                finishReason: event.finishReason,
+                usage: event.usage,
+                aborted: event.status === 'aborted',
+            });
+            if (succeeded || event.status === 'aborted') return [complete];
+            const message = event.error?.message
+                || (event.status === 'max_turns'
+                    ? 'The task reached its turn limit before completing.'
+                    : event.status === 'unknown'
+                        ? 'The task outcome is unknown because no authoritative result was received.'
+                        : 'The task failed.');
+            const error = createNormalizedMessage({
+                ...base,
+                kind: 'error',
+                terminal: true,
+                content: message,
+                code: event.error?.code || `task_${event.status}`,
+                recoverable: false,
+                userHint: event.error?.userHint,
+            });
+            return [error, complete];
+        }
         case 'context_budget':
             return [
                 createNormalizedMessage({
@@ -1565,6 +1597,18 @@ function sendBridgeStatusEvent(writer, statusEvent, sessionKey, provider, runId)
     }
 }
 
+function exclusiveTaskResult(events, sessionKey, runId) {
+    if (events.length !== 1) return null;
+    const event = events[0];
+    if (!event || event.type !== 'task_result') return null;
+    if (event.sessionKey !== sessionKey) return null;
+    if (event.runId !== undefined && event.runId !== runId) return null;
+    if (!taskResultStatuses.has(event.status)) return null;
+    if (typeof event.finishReason !== 'string' || event.finishReason.length === 0) return null;
+    if (!event.usage || typeof event.usage !== 'object' || Array.isArray(event.usage)) return null;
+    return event;
+}
+
 /**
  * Run a chat command through the PilotDeck gateway.
  *
@@ -1652,6 +1696,25 @@ export async function runChatViaGateway(
     let sawTurnCompleted = false;
     let sawGatewayError = false;
     let turnFinishReason = null;
+    let taskResultStatus = null;
+    let taskResultDelivered = false;
+    let displayedTaskError = false;
+    const taskResultEvents = [];
+    const deliverTaskResult = (taskResult) => {
+        if (taskResultDelivered) return;
+        taskResultDelivered = true;
+        taskResultStatus = taskResult.status;
+        turnFinishReason = taskResult.finishReason || taskResult.status;
+        const suppressResultError = displayedTaskError || state.hasVisibleFailureStatus;
+        for (const frame of gatewayEventToFrames(taskResult, sessionKey, provider)) {
+            if (frame.kind === 'error' && suppressResultError) continue;
+            writer.send(frame);
+            if (frame.kind === 'error') {
+                displayedTaskError = true;
+                state.hasVisibleFailureStatus = true;
+            }
+        }
+    };
     try {
         gw = await (hooks.getGateway ? hooks.getGateway() : ensureGateway());
         if (state.deleted || state.deleting) throw new Error('Project is being deleted.');
@@ -1697,6 +1760,10 @@ export async function runChatViaGateway(
         });
 
         for await (const event of stream) {
+            if (event?.type === 'task_result') {
+                taskResultEvents.push(event);
+                continue;
+            }
             if (event && event.type === 'input_accepted') {
                 inputAccepted = true;
                 writer.send({ type: 'session-input-accepted', sessionId: sessionKey, runId });
@@ -1785,25 +1852,28 @@ export async function runChatViaGateway(
             // wait for the async generator to fully close.
             if (event && event.type === 'turn_completed') {
                 sawTurnCompleted = true;
-                turnFinishReason = event.finishReason || null;
                 clearActiveRunIfCurrent(state, runId);
             }
+            if (eventForFrames?.type === 'turn_completed') continue;
             const suppressDuplicateError = eventForFrames?.type === 'error' && state.hasVisibleFailureStatus;
             if (!suppressDuplicateError) {
                 for (const frame of gatewayEventToFrames(eventForFrames, sessionKey, provider)) {
-                    writer.send(frame);
+                    writer.send(frame.kind === 'error' ? { ...frame, terminal: false } : frame);
+                    if (frame.kind === 'error') displayedTaskError = true;
                 }
             }
         }
 
-        if (!sawTurnCompleted && sawGatewayError) {
-            turnFinishReason = 'gateway_error';
-        } else if (!sawTurnCompleted) {
-            turnFinishReason = 'gateway_stream_ended';
-            const message = 'Gateway stream ended before turn_completed; no final assistant response was received.';
-            const userHint = 'The model stream ended before PilotDeck received a final turn result. Please retry this message; if it repeats, check the gateway/model provider logs.';
+        const taskResult = exclusiveTaskResult(taskResultEvents, sessionKey, runId);
+        if (taskResult) {
+            deliverTaskResult(taskResult);
+        } else {
+            const message = taskResultEvents.length === 0
+                ? 'Gateway stream ended without task_result; the task outcome is unknown.'
+                : 'Gateway did not provide exactly one valid task_result; the task outcome is unknown.';
+            const userHint = 'Inspect the session history and gateway state before retrying; do not assume the task failed or retry blindly.';
             const statusEvent = createBridgeFailureStatusEvent({
-                event: 'gateway_stream_ended_without_completion',
+                event: 'task_result_unavailable',
                 message,
                 userHint,
             });
@@ -1816,49 +1886,74 @@ export async function runChatViaGateway(
                 text: message,
                 detail: statusEvent.detail,
             });
-            state.hasVisibleFailureStatus = true;
-            sendBridgeStatusEvent(writer, statusEvent, sessionKey, provider, runId);
+            deliverTaskResult({
+                type: 'task_result',
+                sessionKey,
+                runId,
+                status: 'unknown',
+                finishReason: 'task_result_unavailable',
+                usage: {},
+                error: { code: 'task_result_unavailable', message, userHint },
+            });
         }
     } catch (error) {
-        turnFinishReason = 'gateway_bridge_error';
-        const rawMessage = error instanceof Error ? error.message : String(error);
-        const gatewayUnavailable = !gw || isGatewayUnavailableError(error);
-        if (gatewayUnavailable && gw) {
-            resetGatewayConnection(gw);
-        }
-        const message = gatewayUnavailable ? 'PilotDeck gateway is unavailable.' : rawMessage;
-        const statusEvent = gatewayUnavailable
-            ? createBridgeFailureStatusEvent({
-                event: 'gateway_unavailable',
-                message,
-                userHint: 'Start or restart the PilotDeck gateway, then retry this message.',
-                scope: 'preflight',
-                detail: {
-                    gatewayUrl: GATEWAY_URL,
-                },
-            })
-            : createBridgeFailureStatusEvent({
-                event: 'gateway_bridge_error',
-                message,
-                userHint: 'The Web bridge failed while streaming this turn. Retry this message; if it repeats, check the UI server and gateway logs.',
-            });
+        const taskResult = exclusiveTaskResult(taskResultEvents, sessionKey, runId);
+        if (taskResult) {
+            console.warn('[pilotdeck-bridge] transport ended after task_result; preserving the authoritative outcome:', error);
+            deliverTaskResult(taskResult);
+        } else {
+            turnFinishReason = 'gateway_bridge_error';
+            const rawMessage = error instanceof Error ? error.message : String(error);
+            const gatewayUnavailable = !gw || isGatewayUnavailableError(error);
+            if (gatewayUnavailable && gw) {
+                resetGatewayConnection(gw);
+            }
+            const message = gatewayUnavailable ? 'PilotDeck gateway is unavailable.' : rawMessage;
+            const userHint = inputAccepted
+                ? 'The connection ended after input acceptance, so the task outcome is unknown. Inspect session history and gateway state before retrying; do not retry blindly.'
+                : gatewayUnavailable
+                    ? 'Start or restart the PilotDeck gateway, then retry this message.'
+                    : 'The Web bridge failed before accepting this turn. Retry this message; if it repeats, check the UI server and gateway logs.';
+            const statusEvent = gatewayUnavailable
+                ? createBridgeFailureStatusEvent({
+                    event: 'gateway_unavailable',
+                    message,
+                    userHint,
+                    scope: inputAccepted ? 'turn' : 'preflight',
+                    detail: {
+                        gatewayUrl: GATEWAY_URL,
+                    },
+                })
+                : createBridgeFailureStatusEvent({
+                    event: 'gateway_bridge_error',
+                    message,
+                    userHint,
+                });
 
-        console.error(
-            '[pilotdeck-bridge] runChatViaGateway threw:',
-            error instanceof Error ? (error.stack || error.message) : error,
-        );
-        if (gw) {
-            await recordGatewayStatusMessage(gw, {
+            console.error(
+                '[pilotdeck-bridge] runChatViaGateway threw:',
+                error instanceof Error ? (error.stack || error.message) : error,
+            );
+            if (gw) {
+                await recordGatewayStatusMessage(gw, {
+                    sessionKey,
+                    turnId: runId,
+                    projectKey,
+                    event: statusEvent.event,
+                    text: message,
+                    detail: statusEvent.detail,
+                });
+            }
+            deliverTaskResult({
+                type: 'task_result',
                 sessionKey,
-                turnId: runId,
-                projectKey,
-                event: statusEvent.event,
-                text: message,
-                detail: statusEvent.detail,
+                runId,
+                status: 'unknown',
+                finishReason: turnFinishReason,
+                usage: {},
+                error: { code: statusEvent.event, message, userHint },
             });
         }
-        state.hasVisibleFailureStatus = true;
-        sendBridgeStatusEvent(writer, statusEvent, sessionKey, provider, runId);
     } finally {
         if (state.pendingGatewayRunId === runId) {
             setPendingGatewayRun(state, undefined);
@@ -1878,7 +1973,7 @@ export async function runChatViaGateway(
     }
     if (releasedSteeringItem) mutateInputQueue(state, writer);
     if (state.inputQueue.length > 0) {
-        const disposition = queuedInputDispositionAfterTurn(turnFinishReason, state.queuePaused);
+        const disposition = queuedInputDispositionAfterTurn(turnFinishReason, state.queuePaused, taskResultStatus);
         if (disposition === 'dispatch') {
             await dispatchNextQueuedInput(state, writer, provider);
         } else if (disposition === 'pause') {
@@ -1892,8 +1987,8 @@ export async function runChatViaGateway(
     return { sessionKey, runId, inputAccepted, sawTurnCompleted, sawGatewayError };
 }
 
-export function queuedInputDispositionAfterTurn(finishReason, queuePaused) {
-    if (finishReason === 'completed') return queuePaused ? 'keep' : 'dispatch';
+export function queuedInputDispositionAfterTurn(finishReason, queuePaused, taskResultStatus) {
+    if (finishReason === 'completed' && taskResultStatus === 'success') return queuePaused ? 'keep' : 'dispatch';
     if (finishReason) return 'pause';
     return 'keep';
 }

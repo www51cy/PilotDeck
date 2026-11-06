@@ -107,6 +107,14 @@ export type WebGatewayEvent = WebGatewayEventMetadata & (
   | { type: "agent_status"; event: string; detail?: Record<string, unknown> }
   | { type: "turn_completed"; usage: Record<string, number>; finishReason: string }
   | {
+      type: "task_result";
+      sessionKey: string;
+      status: import("../../gateway/protocol/types.js").GatewayTaskResultStatus;
+      finishReason: string;
+      usage: Record<string, number>;
+      error?: import("../../gateway/protocol/types.js").GatewayTaskResultError;
+    }
+  | {
       type: "error";
       message: string;
       code?: string;

@@ -321,12 +321,36 @@ describe('queued input persistence', () => {
     });
 });
 
+describe('authoritative task result frames', () => {
+    it('maps only success to a successful completion', () => {
+        expect(gatewayEventToFrames({
+            type: 'task_result', sessionKey: 'web:s_result', runId: 'run-1',
+            status: 'success', finishReason: 'completed', usage: {},
+        }, 'web:s_result', 'pilotdeck')).toEqual([
+            expect.objectContaining({ kind: 'complete', success: true, exitCode: 0, taskStatus: 'success' }),
+        ]);
+    });
+
+    it.each(['max_turns', 'failed', 'unknown'])('maps %s to a visible non-success outcome', status => {
+        const frames = gatewayEventToFrames({
+            type: 'task_result', sessionKey: 'web:s_result', runId: 'run-1',
+            status, finishReason: status, usage: {}, error: { code: status, message: `${status} outcome` },
+        }, 'web:s_result', 'pilotdeck');
+        expect(frames).toEqual([
+            expect.objectContaining({ kind: 'error', terminal: true, content: `${status} outcome` }),
+            expect.objectContaining({ kind: 'complete', success: false, exitCode: 1, taskStatus: status }),
+        ]);
+    });
+});
+
 describe('queued input turn boundaries', () => {
     it('dispatches after natural completion but pauses after Stop or failure', () => {
-        expect(queuedInputDispositionAfterTurn('completed', false)).toBe('dispatch');
-        expect(queuedInputDispositionAfterTurn('completed', true)).toBe('keep');
-        expect(queuedInputDispositionAfterTurn('aborted_streaming', true)).toBe('pause');
-        expect(queuedInputDispositionAfterTurn('tool_error', false)).toBe('pause');
+        expect(queuedInputDispositionAfterTurn('completed', false, 'success')).toBe('dispatch');
+        expect(queuedInputDispositionAfterTurn('completed', true, 'success')).toBe('keep');
+        expect(queuedInputDispositionAfterTurn('completed', false, 'failed')).toBe('pause');
+        expect(queuedInputDispositionAfterTurn('max_turns', false, 'max_turns')).toBe('pause');
+        expect(queuedInputDispositionAfterTurn('aborted_streaming', true, 'aborted')).toBe('pause');
+        expect(queuedInputDispositionAfterTurn('tool_error', false, 'failed')).toBe('pause');
     });
 });
 
