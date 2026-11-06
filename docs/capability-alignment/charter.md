@@ -1,8 +1,8 @@
 # PilotDeck 能力对齐工程总章程
 
 - 建立日期：2026-11-06
-- 当前阶段：阶段 0，基线与工程骨架
-- 基线提交：`11e6ce052827e519a7193e7c442b0f4a4975f442`
+- 当前阶段：阶段 0 已闭合；后续阶段未授权
+- 源码基线锚点：`11e6ce052827e519a7193e7c442b0f4a4975f442`（不是最新 HEAD；后续能力对齐提交仅含 docs/tmp，恢复时须核对 src/tests 差异）
 - 恢复入口：`docs/capability-alignment/current-status.md`
 
 ## 初衷

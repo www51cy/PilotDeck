@@ -18,7 +18,7 @@
 
 ## 当前源码事实
 
-- `src/tool/scheduler/ConcurrentToolScheduler.ts:20` 接收逐项 `onResult`，`:35` 使用原位置槽位，`:52-57` 在并行执行中逐项发布，`:67` 按原调用顺序返回数组。
+- `src/tool/scheduler/ConcurrentToolScheduler.ts:20-24` 接收逐项 `onResult`，`:35` 使用原位置槽位，`:52-57` 在并行执行中逐项发布，`:67` 按原调用顺序返回数组。
 - `src/agent/loop/AgentLoop.ts:2633` 实现事件泵；`:2640` 按调用 ID 保存唯一结果，`:2646-2654` 去重并发布终态，`:2665-2672` 合成中止结果，`:2705-2717` 泵出事件并按原调用顺序返回。
 - `src/agent/loop/AgentLoop.ts:1714-1739` 在中止路径投影并持久化结果，然后结束轮次。
 - `src/agent/loop/ensureToolResultPairing.ts:10-37` 补齐缺失配对，`:39-68` 创建原生 `tool_aborted` 结果。
@@ -37,6 +37,8 @@
 | P1 OpenAI 协议适配 | I1-I5 | 本轮无对照证据 | 未闭合 |
 | P2 Anthropic 协议适配 | I1-I5 | 本轮无对照证据 | 未闭合 |
 | U1 真实页面发起并行工具任务并取消 | I1-I5 | 本轮无浏览器与持久化对账证据 | 未闭合 |
+
+证据强度说明：A2/A3 的“当次持久化”通过测试内 `onDurableMessage` 内存回调数组证明，未触达真实 transcript、磁盘写入与 `captureTurn`，因此 U1 必须保持未闭合。A2 的迟到成功会经调度器回流并被去重守卫吞掉，属于 I3 的间接行为覆盖，但不替代 A4 对同一调用重复终态的直接故障注入。
 
 ## 完整 PASS 判据
 
@@ -83,6 +85,12 @@ env -C /root/pilotdeck bun test --timeout 10000 tests/agent/loop/tool-lifecycle.
 
 该结果说明这组三个场景可同时用于 Bun 快速辅助回归，但没有暴露运行时差异。它不证明整个 PilotDeck 与 Bun 兼容，也不替代生产声明运行时 Node 的基线、双协议和真实页面证据。EXE-01 状态仍为 `PARTIAL`。
 
+## 阶段 0 独立复核
+
+2026-11-06，无实现上下文的 Verification 新会话完成只读复核，阶段 0 工件包判定 `PASS`。复核者独立重跑本卡 Node/Bun 场景，均各 3/3 通过；源码引用、原始证据哈希、相关提交、工作区边界和未覆盖范围得到核对。完整报告及发现处置见 `stage-0-independent-review.md`。
+
+该 `PASS` 只确认阶段 0 的基线证据与恢复骨架，不是本卡完整判据第 4 项在 A1-A5、P1/P2、U1 全部闭合后的最终复核。EXE-01 继续保持 `PARTIAL`。
+
 ## 下一步
 
-后续动作是独立复核通道恢复后完成审查。缺少的 A4、A5、P1、P2、U1 保持明确未闭合；新增测试或业务修改不得借本卡自动获得授权。
+阶段 0 独立复核已经闭合。缺少的 A4、A5、P1、P2、U1 保持明确未闭合；新增测试或业务修改不得借本卡或阶段 0 复核结果自动获得授权。
