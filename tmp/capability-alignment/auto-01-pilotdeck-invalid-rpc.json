@@ -1,0 +1,9 @@
+{
+  "mode": "invalid-rpc",
+  "protocolVersion": "1.1",
+  "error": {
+    "name": "Error",
+    "code": "gateway_request_failed",
+    "message": "Unknown gateway method auto_01_unknown_method."
+  }
+}

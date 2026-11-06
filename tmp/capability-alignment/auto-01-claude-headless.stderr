@@ -1,0 +1,2 @@
+$ bun run --feature=EXTRACT_MEMORIES src/entrypoints/cli.tsx -p "只回复 OK，不要调用任何工具。" --output-format json --tools  --max-turns "1" --no-session-persistence
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.

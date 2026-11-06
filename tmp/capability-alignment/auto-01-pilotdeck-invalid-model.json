@@ -1,0 +1,41 @@
+{
+  "mode": "invalid-model",
+  "protocolVersion": "1.1",
+  "sessionKey": "test:project=/root/pilotdeck:s_86533b63-b481-423b-82c7-6c81d9cbfaf6",
+  "events": [
+    {
+      "type": "agent_status",
+      "runId": "0add6c0d-7ff4-4624-85a2-2a6175534594",
+      "event": "gateway_submit_failed",
+      "detail": {
+        "message": "Model is unavailable: volc_ark/auto-01-deliberately-missing-model",
+        "code": "gateway_submit_failed",
+        "severity": "error",
+        "visible": true,
+        "userHint": "PilotDeck failed before the agent turn could finish. Retry this message; if it repeats, check the gateway logs.",
+        "scope": "turn",
+        "source": "gateway"
+      }
+    },
+    {
+      "type": "error",
+      "runId": "0add6c0d-7ff4-4624-85a2-2a6175534594",
+      "code": "gateway_submit_failed",
+      "message": "Model is unavailable: volc_ark/auto-01-deliberately-missing-model",
+      "recoverable": false,
+      "userHint": "PilotDeck failed before the agent turn could finish. Retry this message; if it repeats, check the gateway logs."
+    }
+  ],
+  "text": "",
+  "completed": [],
+  "errors": [
+    {
+      "type": "error",
+      "runId": "0add6c0d-7ff4-4624-85a2-2a6175534594",
+      "code": "gateway_submit_failed",
+      "message": "Model is unavailable: volc_ark/auto-01-deliberately-missing-model",
+      "recoverable": false,
+      "userHint": "PilotDeck failed before the agent turn could finish. Retry this message; if it repeats, check the gateway logs."
+    }
+  ]
+}

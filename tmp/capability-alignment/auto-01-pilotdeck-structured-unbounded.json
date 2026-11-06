@@ -1,0 +1,23 @@
+{
+  "recordType": "derived_observation",
+  "mode": "structured-unbounded",
+  "sessionKey": "test:project=/root/pilotdeck:s_86533b63-b481-423b-82c7-6c81d9cbfaf6",
+  "turnId": "18d770df-c7a3-4c84-ac2b-ab9bbd99cbb8",
+  "clientTimeoutMs": 90000,
+  "clientObservedOutcome": "timeout",
+  "clientExitCodeEvidence": "not_independently_retained",
+  "serverStartedAt": "2026-11-06T08:30:58.817Z",
+  "serverCompletedAt": "2026-11-06T08:33:34.020Z",
+  "serverDurationMs": 155203,
+  "structuredToolCallCount": 13,
+  "structuredToolCallCountBasis": "Unique toolCallId values within this turnId",
+  "agentTurns": 14,
+  "serverResultType": "success",
+  "serverStopReason": "completed",
+  "structuredOutput": {
+    "status": "PILOT_STRUCTURED_OK"
+  },
+  "sourceTranscript": "/root/.pilotdeck/projects/root-pilotdeck/chats/test:project=-root-pilotdeck:s_86533b63-b481-423b-82c7-6c81d9cbfaf6.jsonl",
+  "sourceLines": "17-62",
+  "limits": "This is derived from the persisted transcript after the client timed out. It is not a raw WebSocket capture and does not establish whether disconnect abort was timely or why the turn continued."
+}

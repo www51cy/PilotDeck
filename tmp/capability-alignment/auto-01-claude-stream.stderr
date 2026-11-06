@@ -1,0 +1,1 @@
+$ bun run --feature=EXTRACT_MEMORIES src/entrypoints/cli.tsx -p "只返回满足 schema 的结果，不要调用任何工具。" --output-format stream-json --verbose --json-schema "{\"type\":\"object\",\"properties\":{\"status\":{\"type\":\"string\",\"const\":\"OK\"}},\"required\":[\"status\"],\"additionalProperties\":false}" --tools  --max-turns "1" --session-id "1e7b8861-178a-46b3-8158-fc8a0a67e201"

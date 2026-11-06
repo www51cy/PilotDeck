@@ -1,0 +1,1 @@
+$ bun run --feature=EXTRACT_MEMORIES src/entrypoints/cli.tsx -r "1e7b8861-178a-46b3-8158-fc8a0a67e201" -p 上一輪我要求你只回复哪个英文词？只回复那个词，不要调用任何工具。 --output-format json --tools  --max-turns "1"
