@@ -67,6 +67,22 @@ env -C /root/pilotdeck PATH="/root/.local/share/pilotdeck-node/node-v22.13.0-lin
 
 本次结果只把 A1-A3 推进为当前基线通过，因此 EXE-01 为 `PARTIAL`，不能外推 A4、A5、P1、P2、U1。
 
+## Bun 补充对拍
+
+- 时间：2026-11-06T14:49:21+08:00 至 2026-11-06T14:49:22+08:00。
+- 环境：Bun `1.3.11`（`af24e281`）。
+- 退出码：0；结果：3 项通过、0 失败，耗时约 1.95 秒。
+- 原始输出：`tmp/capability-alignment/exe-01-bun.txt`，80 字节。
+- 输出 SHA-256：`978ae46aae6dfac9dbbea8a7ca1b586123fff59340e6a235efc9e649d4193eaa`。
+
+实际命令：
+
+```bash
+env -C /root/pilotdeck bun test --timeout 10000 tests/agent/loop/tool-lifecycle.spec.ts
+```
+
+该结果说明这组三个场景可同时用于 Bun 快速辅助回归，但没有暴露运行时差异。它不证明整个 PilotDeck 与 Bun 兼容，也不替代生产声明运行时 Node 的基线、双协议和真实页面证据。EXE-01 状态仍为 `PARTIAL`。
+
 ## 下一步
 
 后续动作是独立复核通道恢复后完成审查。缺少的 A4、A5、P1、P2、U1 保持明确未闭合；新增测试或业务修改不得借本卡自动获得授权。
