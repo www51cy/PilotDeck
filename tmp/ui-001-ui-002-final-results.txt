@@ -1,0 +1,12 @@
+
+ RUN  v4.1.7 /root/pilotdeck/ui
+
+Browserslist: browsers data (caniuse-lite) is 6 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+ Test Files  5 passed (5)
+      Tests  43 passed (43)
+   Start at  12:19:56
+   Duration  3.98s (transform 1.99s, setup 0ms, import 3.49s, tests 827ms, environment 7.91s)
+

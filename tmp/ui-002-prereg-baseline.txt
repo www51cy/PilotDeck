@@ -1,0 +1,30 @@
+
+ RUN  v4.1.7 /root/pilotdeck/ui
+
+ ❯ |client| src/components/chat-v2/ThinkingBlock.test.tsx (2 tests | 1 failed) 287ms
+   × preserves a manual expansion across completion and later streaming phases 71ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |client| src/components/chat-v2/ThinkingBlock.test.tsx > preserves a manual expansion across completion and later streaming phases
+AssertionError: expected 'false' to be 'true' // Object.is equality
+
+Expected: "true"
+Received: "false"
+
+ ❯ src/components/chat-v2/ThinkingBlock.test.tsx:31:57
+     29|   rerender(<ThinkingBlock content="thinking completed" isStreaming={fa…
+     30|   const completedToggle = screen.getByRole('button', { name: 'Thought …
+     31|   expect(completedToggle.getAttribute('aria-expanded')).toBe('true');
+       |                                                         ^
+     32|
+     33|   rerender(<ThinkingBlock content="thinking resumed" isStreaming />);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)
+   Start at  12:18:35
+   Duration  1.83s (transform 113ms, setup 0ms, import 383ms, tests 287ms, environment 948ms)
+
