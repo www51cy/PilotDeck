@@ -631,6 +631,7 @@ router.post('/connection-test-tasks', modelTestRateLimiter, taskAction((req) => 
     providerId, protocol: provider.protocol || catalog?.protocol,
     endpoint: provider.url || catalog?.defaultUrl,
     apiKey: resolveConfiguredProviderApiKey(providerId, provider),
+    headers: provider.headers,
     models: modelId ? [modelId] : Object.keys(provider.models || {}), retryPolicy: {},
   }, { modelId });
 }));

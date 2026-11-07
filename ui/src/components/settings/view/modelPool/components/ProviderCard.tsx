@@ -79,6 +79,26 @@ type ModelCapabilitiesRecord = {
   [key: string]: unknown;
 };
 
+const STRUCTURED_PROVIDER_KEYS = new Set(["protocol", "url", "apiKey", "models"]);
+
+function advancedProviderFields(provider: V2Provider): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(provider).filter(([key]) => !STRUCTURED_PROVIDER_KEYS.has(key)));
+}
+
+function serializeAdvancedProvider(provider: V2Provider): string {
+  const fields = advancedProviderFields(provider);
+  return Object.keys(fields).length ? JSON.stringify(fields, null, 2) : "";
+}
+
+function parseAdvancedProviderJson(value: string): Record<string, unknown> {
+  if (!value.trim()) return {};
+  const parsed: unknown = JSON.parse(value);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Expected a JSON object.");
+  }
+  return parsed as Record<string, unknown>;
+}
+
 function asModelRecord(value: Record<string, unknown> | null | undefined): Record<string, unknown> {
   return value && typeof value === "object" ? { ...value } : {};
 }
@@ -121,6 +141,8 @@ export default function ProviderCard({
   const [modelSearch, setModelSearch] = useState("");
   const [providerIdDraft, setProviderIdDraft] = useState(providerId);
   const [providerIdError, setProviderIdError] = useState("");
+  const [advancedJson, setAdvancedJson] = useState(() => serializeAdvancedProvider(provider));
+  const [advancedJsonError, setAdvancedJsonError] = useState("");
   const trimmedProviderId = providerIdDraft.trim();
   const effectiveCatalogEntry = catalogEntry?.id === trimmedProviderId
     ? catalogEntry
@@ -160,6 +182,8 @@ export default function ProviderCard({
     setDraftProvider(provider);
     setProviderIdDraft(providerId);
     setProviderIdError("");
+    setAdvancedJson(serializeAdvancedProvider(provider));
+    setAdvancedJsonError("");
   }, [editing, provider, providerId]);
 
   useEffect(() => {
@@ -177,6 +201,26 @@ export default function ProviderCard({
     });
   };
 
+  const advancedJsonErrorMessage = (error: unknown) => t(
+    "pilotDeckConfig.panels.models.providerAdvancedInvalid",
+    { message: error instanceof Error ? error.message : String(error) },
+  );
+
+  const withAdvancedFields = (source: V2Provider): V2Provider => ({
+    ...parseAdvancedProviderJson(advancedJson),
+    ...Object.fromEntries(Object.entries(source).filter(([key]) => STRUCTURED_PROVIDER_KEYS.has(key))),
+  });
+
+  const updateAdvancedJson = (value: string) => {
+    setAdvancedJson(value);
+    try {
+      parseAdvancedProviderJson(value);
+      setAdvancedJsonError("");
+    } catch (error) {
+      setAdvancedJsonError(advancedJsonErrorMessage(error));
+    }
+  };
+
   const cancelEditing = () => {
     if (isNew) {
       onCancelNew?.();
@@ -185,6 +229,8 @@ export default function ProviderCard({
     setDraftProvider(provider);
     setProviderIdDraft(providerId);
     setProviderIdError("");
+    setAdvancedJson(serializeAdvancedProvider(provider));
+    setAdvancedJsonError("");
     setDraftCustomModelId(null);
     setModelSearch("");
     setEditing(false);
@@ -210,12 +256,21 @@ export default function ProviderCard({
 
   const persistProvider = async (next: V2Provider) => {
     if (savingRef.current) return { ok: false, error: t('pilotDeckConfig.panels.models.modelSettings.saveFailed') };
-    const validationError = validateProvider(next);
+    let nextWithAdvanced: V2Provider;
+    try {
+      nextWithAdvanced = withAdvancedFields(next);
+      setAdvancedJsonError("");
+    } catch (error) {
+      const message = advancedJsonErrorMessage(error);
+      setAdvancedJsonError(message);
+      return { ok: false, error: message };
+    }
+    const validationError = validateProvider(nextWithAdvanced);
     if (validationError) {
       setProviderIdError(validationError);
       return { ok: false, error: validationError };
     }
-    const savedProvider = { ...next, protocol, url: effectiveUrl };
+    const savedProvider = { ...nextWithAdvanced, protocol, url: effectiveUrl };
     savingRef.current = true;
     setSaving(true);
     setProviderIdError("");
@@ -227,6 +282,7 @@ export default function ProviderCard({
         return { ok: false, error };
       }
       setDraftProvider(savedProvider);
+      setAdvancedJson(serializeAdvancedProvider(savedProvider));
       setEditing(false);
       setDraftCustomModelId(null);
       return { ok: true };
@@ -400,15 +456,17 @@ export default function ProviderCard({
   };
 
   const startEditing = () => {
+    setAdvancedJson(serializeAdvancedProvider(draftProvider));
+    setAdvancedJsonError("");
     setEditing(true);
     void refreshModels();
   };
 
   const apiKeyInputValue = isMaskedKey ? MASK : (draftProvider.apiKey ?? "");
   const providerValidationError = validateProvider(draftProvider);
-  const testDisabled = tests.checking || tests.pending || !!activeTask || saving || !!providerValidationError;
+  const testDisabled = tests.checking || tests.pending || !!activeTask || saving || !!providerValidationError || !!advancedJsonError;
   const blockingTask = activeTask && activeTask.id !== task?.id ? activeTask : undefined;
-  const testDisabledReason = providerValidationError || (tests.checking && !tests.errorCode
+  const testDisabledReason = providerValidationError || advancedJsonError || (tests.checking && !tests.errorCode
     ? t('pilotDeckConfig.panels.models.checkingTestStatus')
     : blockingTask ? t('pilotDeckConfig.panels.models.modelSettings.otherTestRunning', { provider: blockingTask.providerId, model: blockingTask.modelId || '' }) : undefined);
 
@@ -546,6 +604,30 @@ export default function ProviderCard({
             ) : null}
           </label>
         </section>
+
+        {editing && (
+          <section className="form-section provider-advanced-section">
+            <details open>
+              <summary>{t("pilotDeckConfig.panels.models.providerAdvancedToggle")}</summary>
+              <p className="field-help">{t("pilotDeckConfig.panels.models.providerAdvancedHelp")}</p>
+              <label className="field">
+                <span>{t("pilotDeckConfig.panels.models.providerAdvancedJson")}</span>
+                <textarea
+                  className="mono provider-advanced-json"
+                  rows={8}
+                  value={advancedJson}
+                  disabled={saving}
+                  aria-invalid={Boolean(advancedJsonError)}
+                  aria-label={t("pilotDeckConfig.panels.models.providerAdvancedJson")}
+                  placeholder={'{\n  "headers": {\n    "x-custom-header": "value"\n  }\n}'}
+                  spellCheck={false}
+                  onChange={(event) => updateAdvancedJson(event.target.value)}
+                />
+              </label>
+              {advancedJsonError && !modelSettingsId ? <small className="field-error" role="alert">{advancedJsonError}</small> : null}
+            </details>
+          </section>
+        )}
 
         <section className="form-section models-section">
           <div className="section-heading with-meta">

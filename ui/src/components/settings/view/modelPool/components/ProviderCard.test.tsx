@@ -202,23 +202,88 @@ describe("ProviderCard custom model add", () => {
     expect(mocks.authenticatedFetch.mock.calls.some(([url]) => url === '/api/config/model-removal')).toBe(false);
   });
 
-  it("does not expose provider retry settings", () => {
+  it("edits advanced provider JSON without duplicating the structured fields", async () => {
+    const onSave = vi.fn(async () => ({ ok: true }));
     render(
       <ProviderCard
-        providerId="openrouter"
+        providerId="opencode"
+        initialEditing
         provider={{
-          protocol: "openai",
-          url: "https://openrouter.ai/api/v1",
+          protocol: "anthropic",
+          url: "https://opencode.example/v1",
           apiKey: "sk-test",
+          headers: { "x-opencode-session": "old-session" },
+          timeoutMs: 30000,
           models: { "model-a": {} },
         }}
-        catalogEntry={catalogEntry}
-        onSave={vi.fn()}
+        onSave={onSave}
         onRemove={vi.fn()}
       />,
     );
 
-    expect(screen.queryByText("pilotDeckConfig.panels.models.providerAdvancedToggle")).toBeNull();
+    expect(screen.getByText("pilotDeckConfig.panels.models.providerAdvancedToggle")).toBeTruthy();
+    const editor = screen.getByRole("textbox", { name: "pilotDeckConfig.panels.models.providerAdvancedJson" }) as HTMLTextAreaElement;
+    expect(JSON.parse(editor.value)).toEqual({
+      headers: { "x-opencode-session": "old-session" },
+      timeoutMs: 30000,
+    });
+    expect(editor.value).not.toContain("sk-test");
+    expect(editor.value).not.toContain("model-a");
+
+    fireEvent.change(editor, {
+      target: { value: JSON.stringify({ headers: { "x-opencode-session": "gateway-main" }, timeoutMs: 90000 }) },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "actions.saveChanges" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith("opencode", {
+      protocol: "anthropic",
+      url: "https://opencode.example/v1",
+      apiKey: "sk-test",
+      headers: { "x-opencode-session": "gateway-main" },
+      timeoutMs: 90000,
+      models: { "model-a": {} },
+    }));
+  });
+
+  it("rejects malformed advanced JSON before saving or starting a connection test", async () => {
+    const onSave = vi.fn(async () => ({ ok: true }));
+    render(
+      <ProviderCard
+        providerId="opencode"
+        initialEditing
+        provider={{ protocol: "anthropic", url: "https://opencode.example/v1", apiKey: "sk-test", models: { "model-a": {} } }}
+        onSave={onSave}
+        onRemove={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByRole("textbox", { name: "pilotDeckConfig.panels.models.providerAdvancedJson" }), {
+      target: { value: '{"headers":' },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "model-a" }));
+    fireEvent.click(screen.getByRole("button", { name: "pilotDeckConfig.panels.models.modelSettings.saveAndTest" }));
+
+    await screen.findByText("pilotDeckConfig.panels.models.providerAdvancedInvalid");
+    expect(onSave).not.toHaveBeenCalled();
+    expect(mocks.authenticatedFetch.mock.calls.some(([, options]) => options?.method === "POST")).toBe(false);
+  });
+
+  it("preserves advanced provider fields through ordinary form saves", async () => {
+    const onSave = vi.fn(async () => ({ ok: true }));
+    const provider = {
+      protocol: "openai" as const,
+      url: "https://example.test/v1",
+      apiKey: "old-key",
+      headers: { "x-provider-session": "preserved" },
+      timeoutMs: 45000,
+      models: { "model-a": {} },
+    };
+    render(<ProviderCard providerId="custom" initialEditing provider={provider} onSave={onSave} onRemove={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText("pilotDeckConfig.panels.models.apiKey"), { target: { value: "new-key" } });
+    fireEvent.click(screen.getByRole("button", { name: "actions.saveChanges" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith("custom", { ...provider, apiKey: "new-key" }));
   });
 
   it("puts add-model first in candidates and enables a typed ID on enter", async () => {
@@ -355,6 +420,29 @@ describe("ProviderCard connection badge", () => {
     await waitFor(() => expect(onSave).toHaveBeenCalled());
     expect(onSave.mock.calls[0][1]).toMatchObject({models:{one:{capabilities:{maxOutputTokens:8192,supportsToolUse:true},multimodal:{input:['text','pdf','image'],maxPdfPages:5}},two:provider.models.two}});
     expect(mocks.authenticatedFetch.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(false);
+  });
+
+  it('preserves advanced provider fields when saving model settings outside edit mode', async () => {
+    const onSave = vi.fn(async () => ({ ok: true }));
+    const provider = {
+      protocol: 'anthropic' as const,
+      url: 'https://opencode.example/v1',
+      apiKey: 'key',
+      headers: { 'x-opencode-session': 'preserved' },
+      timeoutMs: 45000,
+      models: { one: { capabilities: { maxOutputTokens: 1024 } } },
+    };
+    render(<ProviderCard providerId="opencode" provider={provider} onSave={onSave} onRemove={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'one' }));
+    fireEvent.change(screen.getByLabelText('pilotDeckConfig.panels.models.maxOutputTokens'), { target: { value: '8192' } });
+    fireEvent.click(screen.getByRole('button', { name: 'pilotDeckConfig.panels.models.modelSettings.save' }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith('opencode', expect.objectContaining({
+      headers: provider.headers,
+      timeoutMs: provider.timeoutMs,
+      models: { one: expect.objectContaining({ capabilities: expect.objectContaining({ maxOutputTokens: 8192 }) }) },
+    })));
   });
 
   it('tests only the selected model, restores progress after remount and never saves on completion', async () => {

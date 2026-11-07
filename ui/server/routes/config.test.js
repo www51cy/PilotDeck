@@ -695,7 +695,7 @@ describe('config model-pool connection test routes', () => {
 
   it('tests exactly one existing model without writing any configuration', async () => {
     const probe = vi.fn(async () => ({ok:true}));
-    const initial = {schemaVersion:1,agent:{model:'HXAPI/one'},model:{providers:{HXAPI:{protocol:'openai',url:'https://custom.example/v1',apiKey:'key',models:{one:null,two:{}}}}}};
+    const initial = {schemaVersion:1,agent:{model:'HXAPI/one'},model:{providers:{HXAPI:{protocol:'openai',url:'https://custom.example/v1',apiKey:'key',headers:{'x-opencode-session':'gateway-main'},models:{one:null,two:{}}}}}};
     const raw = stringifyYaml(initial);
     const {request,configPath} = await createDiskConfigApp(raw,{probe});
     const missing = await request('/api/config/connection-test-tasks',{method:'POST',body:JSON.stringify({providerId:'HXAPI',modelId:'missing'})});
@@ -708,14 +708,15 @@ describe('config model-pool connection test routes', () => {
     });
     expect(probe).toHaveBeenCalledTimes(2);
     expect(probe.mock.calls.every(([options])=>options.model==='one')).toBe(true);
+    expect(probe.mock.calls.every(([options])=>options.headers?.['x-opencode-session']==='gateway-main')).toBe(true);
     expect(readFileSync(configPath,'utf8')).toBe(raw);
   });
 
-  it.each(['unrelated edit', 'credential edit'])('runs a detached task against the latest config after %s', async (change) => {
+  it.each(['unrelated edit', 'credential edit', 'header edit'])('runs a detached task against the latest config after %s', async (change) => {
     let finish;
     const waiting = new Promise(resolve => { finish = resolve; });
     const probe = vi.fn().mockImplementationOnce(() => waiting).mockResolvedValue({ ok: true });
-    const provider = { protocol: 'openai', url: 'https://custom.example/v1', apiKey: 'original-key', models: { 'model-a': {} } };
+    const provider = { protocol: 'openai', url: 'https://custom.example/v1', apiKey: 'original-key', headers: { 'x-opencode-session': 'old-session' }, models: { 'model-a': {} } };
     const initial = { schemaVersion: 1, agent: { model: 'HXAPI/model-a' }, model: { providers: { HXAPI: provider } } };
     const { request, configPath } = await createDiskConfigApp(stringifyYaml(initial), { probe });
     const started = await request('/api/config/connection-test-tasks', { method: 'POST', body: JSON.stringify({ providerId: 'HXAPI' }) });
@@ -731,18 +732,20 @@ describe('config model-pool connection test routes', () => {
     const next = structuredClone(initial);
     next.memory = { enabled: false };
     if (change === 'credential edit') next.model.providers.HXAPI.apiKey = 'new-key';
+    if (change === 'header edit') next.model.providers.HXAPI.headers['x-opencode-session'] = 'new-session';
     const edit = await request('/api/config', { method: 'PUT', body: JSON.stringify({ raw: stringifyYaml(next) }) });
     expect(edit.status).toBe(200);
     finish({ ok: true });
     await vi.waitFor(async () => {
       const state = await request('/api/config/connection-test-tasks');
-      expect(state.body.tasks[0].status).toBe(change === 'credential edit' ? 'saveError' : 'success');
+      expect(state.body.tasks[0].status).toBe(change === 'unrelated edit' ? 'success' : 'saveError');
     });
     const disk = parseYaml(readFileSync(configPath, 'utf8'));
     expect(disk.memory.enabled).toBe(false);
-    if (change === 'credential edit') {
-      expect(disk.model.providers.HXAPI.apiKey).toBe('new-key');
+    if (change !== 'unrelated edit') {
       expect(disk.model.providers.HXAPI.models['model-a'].connectionTest).toBeUndefined();
+      if (change === 'credential edit') expect(disk.model.providers.HXAPI.apiKey).toBe('new-key');
+      else expect(disk.model.providers.HXAPI.headers['x-opencode-session']).toBe('new-session');
     } else {
       expect(disk.model.providers.HXAPI.apiKey).toBe('original-key');
       expect(disk.model.providers.HXAPI.models['model-a'].connectionTest.status).toBe('passed');
