@@ -258,10 +258,14 @@ jsdom 只能验证监听和 reducer，不得把其通过表述为真实浏览器
 
 | 切片 | 内容 | 状态 | 证据 |
 | --- | --- | --- | --- |
-| C-1 | 3001 对 `ping` 返回 `pong` | 实施中 | 见提交记录 |
-| C-2 | 客户端 ACK 跟踪与有界超时 | 未开始 | — |
-| A | 显式模型请求完成/失败事件 | 未开始 | — |
+| C-1 | 3001 对 `ping` 返回 `pong` | 已实现 | 15ec0779；`ui/server/session-heartbeat.test.js` 9 例（先红后绿） |
+| C-2 | 客户端 ACK 跟踪与有界超时 | 已实现 | 67872a6a；`WebSocketContext.heartbeat.test.tsx` 7 例（先红后绿） |
+| A | 显式模型请求完成/失败事件 | 已实现（首期收窄版） | bced4fee；网关映射 1 例红→绿，实时处理器 2 例红→绿 |
 | B | execution epoch/seq 与版本化快照 | 未开始 | — |
 | C-3 | 统一 RecoveryCoordinator | 未开始 | — |
+
+A 切片的已知收窄：只覆盖"正常完成"与"终局失败（模型异常、流中断耗尽、未知结束耗尽）"，
+自纠正重试路径不单独发终态（下一条 `model_request_started` 覆盖）；其余夭折路径仍由
+turn `complete` 与 inactive 快照兜底。完整 `modelCallId` 状态机未实现。
 
 真实浏览器验收（BFCache、页面冻结、半开连接）独立记录，不因 jsdom 测试通过而标为完成。
