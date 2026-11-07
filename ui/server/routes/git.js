@@ -313,6 +313,28 @@ router.get('/status', async (req, res) => {
     const repositoryRoot = await getRepositoryRootPath(projectPath);
     const { stdout: statusOutput } = await spawnAsync('git', ['--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: repositoryRoot });
     const entries = parseGitStatus(statusOutput);
+
+    // `summary=1` powers the composer's branch chip: same source of truth,
+    // without per-file fingerprints or `write-tree` (which are only needed for
+    // the checkpoint diff view).
+    if (req.query.summary === '1' || req.query.summary === 'true') {
+      const aheadBehind = await spawnAsync(
+        'git',
+        ['rev-list', '--left-right', '--count', '@{upstream}...HEAD'],
+        { cwd: repositoryRoot },
+      ).then(result => result.stdout.trim().split(/\s+/).map(Number), () => null);
+      const [behind = 0, ahead = 0] = aheadBehind ?? [];
+      return res.json({
+        isRepository: true,
+        branch,
+        hasCommits,
+        dirty: entries.length,
+        ahead: Number.isFinite(ahead) ? ahead : 0,
+        behind: Number.isFinite(behind) ? behind : 0,
+        untracked: entries.filter(entry => entry.untracked).length,
+      });
+    }
+
     const fileFingerprints = Object.fromEntries(await Promise.all(entries.map(async entry => [entry.path, await repositoryFileFingerprint(repositoryRoot, entry.path)])));
     const indexTree = await spawnAsync('git', ['write-tree'], { cwd: repositoryRoot }).then(result => result.stdout.trim(), () => null);
 
