@@ -93,3 +93,10 @@ SHA-256：`49c6654f260df26109e0230113a82e21252cff418eccd7c6a21edbe004e06a7d`
 - 两次摘要均成功；第二轮 `checkpointMerged=true`，合并前一份 rolling summary 的执行件断言已随本轮运行通过。独立复核用产品编译件从磁盘重放，14 条记录无诊断，最后快照被选中，replayMessages=483、compactReplacement=482，活跃态仅一个 compact boundary 消息和一个 wrapped summary，最终文本为 `The second repository inspection is complete.`。两条 compact 控制边界记录不等于两个活跃 boundary 消息。
 - 零上下文 Verification 最终 delta  verdict=`PASS`，阻断发现为零；最终真实 E2E 可进入精确提交与隔离复测。CMP-01 仍只能登记为 `PARTIAL`：本轮仅覆盖 volc_ark/ark-code-latest、同进程 syntheticMessages 重灌和已执行场景，不证明跨进程真实恢复、压缩中取消、其他 Provider 或熔断状态跨进程持久化。
 - 非阻断发现逐项结算：①摘要提示词原文不落盘，`<previous-rolling-summary>` 的证据类型是执行件断言加跑通，保留该证据边界，不改写成可事后逐字重放；②`AgentLoop.ts` 的持久化静默 catch 继续挂账为可观测性缺口，本轮两条边界实际落盘且 replay 可读，没有数据丢失证据，也未宣称该挂账已修；③最终日志本身不打印 Node 版本，实际启动命令的钉版绝对路径作为运行时证据，不复用复核者另一 PATH 的探测结果；④终轮三工件哈希原先未入账，已在本节补齐。
+
+## 本地提交与隔离复测
+
+- 压缩实现、三份冻结测试、E2E 脚本和主要证据已按精确路径及 hunk 本地提交为 `6ef4411f10b8f6c393d5dfbf6ac495d1faf418d0`。`TranscriptEntry.ts` 只纳入 emergency snapshot 与 micro 联合类型两个压缩改动，`transcript_turn_incomplete` 和 `turnId` 诊断仍属外来恢复线；项目区、Web 不完整轮次及其他未提交修改均未纳入。
+- 从该提交创建独立 detached worktree `tmp/compaction-final-isolated`，复用主树 `node_modules`，`src` 与 `tests` 相对提交无差异。第一次构建在隔离树没有 Cua 驱动时停在 GitHub 下载，未进入 TypeScript 主构建；随后复制主树已由 manifest 校验的 0.34.1 驱动并重跑构建成功，不降低任何构建或测试判据。
+- 钉版 Node 22.13.0 下，三份冻结测试源码直跑与构建后 dist 均为 13/13 通过、0 失败。报告分别为 `tmp/compaction-final-isolated-source-results.xml` 与 `tmp/compaction-final-isolated-dist-results.xml`，SHA-256 分别为 `eba728230e0465273b2828ae329a5b7ddd398362e49009275f694de5288f904a`、`9e58568ca7f17118ce76183333f5e63d6aa4ee6724d0251e4e4de14a1b292a93`；成功构建日志为 `tmp/compaction-final-isolated-build-reuse.log`，SHA-256 为 `6763a98387f6a3c0ee7ab160aae9b01e936907eeb35e97727ab9b7b14f25d385`。
+- 隔离树中的三份冻结测试哈希仍逐一等于最终冻结值。该复测证明实际提交内容可独立构建并通过冻结契约，不重复发起真实模型请求，也不改变前述 CMP-01 `PARTIAL` 射程。
