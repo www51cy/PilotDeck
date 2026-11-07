@@ -258,14 +258,27 @@ jsdom 只能验证监听和 reducer，不得把其通过表述为真实浏览器
 
 | 切片 | 内容 | 状态 | 证据 |
 | --- | --- | --- | --- |
-| C-1 | 3001 对 `ping` 返回 `pong` | 已实现 | 15ec0779；`ui/server/session-heartbeat.test.js` 9 例（先红后绿） |
-| C-2 | 客户端 ACK 跟踪与有界超时 | 已实现 | 67872a6a；`WebSocketContext.heartbeat.test.tsx` 7 例（先红后绿） |
-| A | 显式模型请求完成/失败事件 | 已实现（首期收窄版） | bced4fee；网关映射 1 例红→绿，实时处理器 2 例红→绿 |
+| C-1 | 3001 对 `ping` 返回 `pong` | 已实现 | `15ec0779`；`ui/server/session-heartbeat.test.js` 9 例；2026-11-07 真实 3001 经 supervisor 重启后 `/health` 正常，认证 `/ws` 返回匹配 `requestId` 的 `pong` |
+| C-2 | 客户端 ACK 跟踪与有界超时 | 已实现 | `67872a6a`＋`9beb1a8f`；`WebSocketContext.heartbeat.test.tsx` 11 例（异常路径先红后绿） |
+| A | 显式模型请求完成/失败事件 | 已实现（首期收窄版） | `bced4fee`＋`9beb1a8f`；AgentLoop 36 例、实时处理器 27 例；独立复核 PASS |
 | B | execution epoch/seq 与版本化快照 | 未开始 | — |
 | C-3 | 统一 RecoveryCoordinator | 未开始 | — |
 
 A 切片的已知收窄：只覆盖"正常完成"与"终局失败（模型异常、流中断耗尽、未知结束耗尽）"，
 自纠正重试路径不单独发终态（下一条 `model_request_started` 覆盖）；其余夭折路径仍由
 turn `complete` 与 inactive 快照兜底。完整 `modelCallId` 状态机未实现。
+`9beb1a8f` 补齐两处应急压缩仍溢出及通用带内模型错误的显式 `model_request_failed`，
+并让 `retry_progress` 保留模型请求状态所有权；heartbeat 发送、打开时队列冲刷及构造器异常
+也统一进入既有单次 settle 与指数退避。
 
-真实浏览器验收（BFCache、页面冻结、半开连接）独立记录，不因 jsdom 测试通过而标为完成。
+审计修复的三份冻结测试 SHA-256：
+- `useChatRealtimeHandlers.test.tsx`：`53d6ae8b3d928297d9c0448ab5773fe31c197f52e694e177b62c622ffdd84efd`
+- `stream-interruption-recovery.spec.ts`：`e0326e1eb77654b248838d8fe3ec4742c7191df3c9a5990bd08144e789e80991`
+- `WebSocketContext.heartbeat.test.tsx`：`de91225da6f2789e196bec907c5cc22fe59538a97eff629053ea38520593fdc4`
+
+最终 Agent 冻结测试在隔离旧实现上为 35/36，唯一失败准确命中缺少 `model_request_failed`；
+当前实现目标测试 36/36、UI 目标测试 38/38，独立复核的 Agent 相邻回归 77/77、UI 相邻回归
+178/178（默认并行运行出现 1 个预存 5 秒超时，30 秒复跑全绿），UI 生产构建成功。
+
+真实 3001 的 ping/pong 只验证生产接线和链路活性，不证明业务状态已同步。真实浏览器验收
+（重试后的视觉状态、BFCache、页面冻结、半开连接）仍未完成，不因 jsdom 测试通过而标为完成。
