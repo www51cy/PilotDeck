@@ -157,9 +157,28 @@ describe('selectVisibleMessages', () => {
 
     const visible = selectVisibleMessages(messages, 100);
 
-    expect(visible).toHaveLength(100);
+    // The window grows back to the turn's prompt instead of moving the prompt
+    // to the front, because a hoisted prompt renders above its own turn header.
+    expect(visible).toHaveLength(147);
     expect(visible[0].id).toBe('current');
     expect(visible.at(-1)?.id).toBe('tool-145');
+    expect(visible.map((message) => message.id)).toEqual(messages.map((message) => message.id));
+  });
+
+  it('never hoists the prompt above rows that precede it', () => {
+    const messages = [
+      user('older'),
+      process(1),
+      user('current'),
+      ...Array.from({ length: 150 }, (_, index) => process(index + 10)),
+    ];
+
+    const visible = selectVisibleMessages(messages, 100);
+
+    expect(visible[0].id).toBe('current');
+    expect(visible[1].id).toBe('tool-10');
+    expect(visible.at(-1)?.id).toBe('tool-159');
+    expect(visible).toEqual(messages.slice(2));
   });
 
   it('does not alter a window that already contains its latest user anchor', () => {

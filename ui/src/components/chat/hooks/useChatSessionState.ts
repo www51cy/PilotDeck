@@ -109,8 +109,11 @@ export function shouldRenderPendingBubble(
  * plain tail slice would then discard the prompt, leaving the live-process
  * grouping code without a visible row to attach the collapsed process to.
  *
- * Preserve the most recent user message by replacing the oldest tail entry,
- * so the render cap remains unchanged while the active turn keeps its anchor.
+ * Extend the window backwards to the turn's prompt. Never pull the prompt out
+ * of order: a prompt rendered at index 0 with newer rows below it appears to
+ * jump above its own turn header ("my message ran to the top of the previous
+ * conversation"), because that header is derived from the turn the prompt
+ * belongs to.
  */
 export function selectVisibleMessages(
   messages: ChatMessage[],
@@ -118,8 +121,7 @@ export function selectVisibleMessages(
 ): ChatMessage[] {
   if (messages.length <= visibleMessageCount) return messages;
 
-  const tail = messages.slice(-visibleMessageCount);
-  const tailStartIndex = messages.length - tail.length;
+  const windowStart = Math.max(0, messages.length - visibleMessageCount);
   let latestUserIndex = -1;
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     if (messages[index]?.type === 'user') {
@@ -128,13 +130,10 @@ export function selectVisibleMessages(
     }
   }
 
-  if (latestUserIndex < 0 || latestUserIndex >= tailStartIndex) {
-    return tail;
+  if (latestUserIndex < 0 || latestUserIndex >= windowStart) {
+    return messages.slice(windowStart);
   }
-  if (tail.length <= 1) {
-    return [messages[latestUserIndex]];
-  }
-  return [messages[latestUserIndex], ...tail.slice(1)];
+  return messages.slice(latestUserIndex);
 }
 
 export function getStreamContentKey(messages: ChatMessage[]): string {
