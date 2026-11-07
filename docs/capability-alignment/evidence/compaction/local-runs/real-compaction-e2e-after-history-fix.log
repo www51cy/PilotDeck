@@ -1,0 +1,210 @@
+(node:8747) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[context:auto-compact] policy_trigger {"sessionId":"real-compaction-1794019753611","turnId":"real-compaction-turn","reason":"blocking_threshold","snapshot":{"tokens":761027,"estimateSource":"estimator","localEstimateTokens":761027,"totalContextTokens":262144,"maxContextTokens":229376,"effectiveContextTokens":229376,"maxOutputTokens":32768,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":3.317814418247768,"source":"local","exact":false,"reservedOutputTokens":32768},"messages":542,"reservedOutputTokens":32768}
+[context:auto-compact] pre_summary_prune {"sessionId":"real-compaction-1794019753611","turnId":"real-compaction-turn","rewritten":266,"rewrittenBytes":3107536,"snapshot":{"tokens":224989,"estimateSource":"estimator","localEstimateTokens":224989,"totalContextTokens":262144,"maxContextTokens":229376,"effectiveContextTokens":229376,"maxOutputTokens":32768,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.9808741978236607,"source":"local","exact":false,"reservedOutputTokens":32768}}
+[context:auto-compact] full_compaction_started {"sessionId":"real-compaction-1794019753611","turnId":"real-compaction-turn","messages":542,"snapshot":{"tokens":224989,"estimateSource":"estimator","localEstimateTokens":224989,"totalContextTokens":262144,"maxContextTokens":229376,"effectiveContextTokens":229376,"maxOutputTokens":32768,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.9808741978236607,"source":"local","exact":false,"reservedOutputTokens":32768}}
+[context:auto-compact] full_compaction_completed {"sessionId":"real-compaction-1794019753611","turnId":"real-compaction-turn","snapshot":{"tokens":73147,"estimateSource":"estimator","localEstimateTokens":73147,"totalContextTokens":262144,"maxContextTokens":229376,"effectiveContextTokens":229376,"maxOutputTokens":32768,"warningRatio":0.8,"blockingRatio":0.9,"state":"ok","ratio":0.31889561244419645,"source":"local","exact":false,"reservedOutputTokens":32768},"summarySucceeded":true,"summaryGenerated":true,"checkpointMerged":false,"targetPostTokens":137625,"preTokens":224491,"postTokens":72649}
+[context:auto-compact] policy_trigger {"sessionId":"real-compaction-1794019753611","turnId":"real-compaction-turn-2","reason":"blocking_threshold","snapshot":{"tokens":845971,"estimateSource":"usage","usageTokens":845971,"localEstimateTokens":833716,"calibrationActualInputTokens":85402,"calibrationEstimatedInputTokens":73147,"totalContextTokens":262144,"maxContextTokens":229376,"effectiveContextTokens":229376,"maxOutputTokens":32768,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":3.688140869140625,"source":"calibrated","exact":false,"reservedOutputTokens":32768},"messages":1026,"reservedOutputTokens":32768}
+[context:auto-compact] pre_summary_prune {"sessionId":"real-compaction-1794019753611","turnId":"real-compaction-turn-2","rewritten":266,"rewrittenBytes":3107536,"snapshot":{"tokens":309933,"estimateSource":"usage","usageTokens":309933,"localEstimateTokens":297678,"calibrationActualInputTokens":85402,"calibrationEstimatedInputTokens":73147,"totalContextTokens":262144,"maxContextTokens":229376,"effectiveContextTokens":229376,"maxOutputTokens":32768,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.3512006487165178,"source":"calibrated","exact":false,"reservedOutputTokens":32768}}
+[context:auto-compact] full_compaction_started {"sessionId":"real-compaction-1794019753611","turnId":"real-compaction-turn-2","messages":1026,"snapshot":{"tokens":309933,"estimateSource":"usage","usageTokens":309933,"localEstimateTokens":297678,"calibrationActualInputTokens":85402,"calibrationEstimatedInputTokens":73147,"totalContextTokens":262144,"maxContextTokens":229376,"effectiveContextTokens":229376,"maxOutputTokens":32768,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.3512006487165178,"source":"calibrated","exact":false,"reservedOutputTokens":32768}}
+[context:auto-compact] full_compaction_completed {"sessionId":"real-compaction-1794019753611","turnId":"real-compaction-turn-2","snapshot":{"tokens":85447,"estimateSource":"usage","usageTokens":85447,"localEstimateTokens":73192,"calibrationActualInputTokens":85402,"calibrationEstimatedInputTokens":73147,"totalContextTokens":262144,"maxContextTokens":229376,"effectiveContextTokens":229376,"maxOutputTokens":32768,"warningRatio":0.8,"blockingRatio":0.9,"state":"ok","ratio":0.3725193568638393,"source":"calibrated","exact":false,"reservedOutputTokens":32768},"summarySucceeded":true,"summaryGenerated":true,"checkpointMerged":true,"targetPostTokens":137625,"preTokens":297180,"postTokens":72694}
+{
+  "provider": "volc_ark",
+  "model": "ark-code-latest",
+  "sourceFiles": 270,
+  "seededMessages": 541,
+  "limits": {
+    "totalContextTokens": 262144,
+    "maxOutputTokens": 32768,
+    "effectiveInputTokens": 229376,
+    "targetTokens": 137625,
+    "summaryMaxOutputTokens": 4000
+  },
+  "initial": {
+    "tokens": 760506,
+    "totalContextTokens": 262144,
+    "effectiveContextTokens": 229376,
+    "reservedOutputTokens": 32768,
+    "ratio": 3.3155430385044644,
+    "source": "local",
+    "exact": false
+  },
+  "afterMicroProjection": {
+    "tokens": 224491,
+    "totalContextTokens": 262144,
+    "effectiveContextTokens": 229376,
+    "reservedOutputTokens": 32768,
+    "ratio": 0.9787030901227679,
+    "source": "local",
+    "exact": false
+  },
+  "summaryCalls": 2,
+  "summaryUsage": {
+    "inputTokens": 111568,
+    "outputTokens": 1177,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 0,
+    "totalTokens": 112745
+  },
+  "summaryInputUsageTokens": 111568,
+  "compactMetadata": {
+    "compactionId": "4862f150-a0e8-4e8b-9a49-a80e7068428b",
+    "trigger": "auto",
+    "preTokens": 297180,
+    "postTokens": 85447,
+    "messagesSummarized": 544,
+    "targetTokens": 137625,
+    "summaryGenerated": true,
+    "checkpointMerged": true,
+    "finalRatio": 0.3725193568638393,
+    "extra": {
+      "tier": "full",
+      "summarySucceeded": true,
+      "cacheReset": true
+    },
+    "timeline": {
+      "version": 1,
+      "turnId": "real-compaction-turn-2",
+      "id": "compact:4862f150-a0e8-4e8b-9a49-a80e7068428b",
+      "order": 0,
+      "revision": 1
+    }
+  },
+  "compactEvents": [
+    {
+      "type": "compact_started",
+      "sessionId": "real-compaction-1794019753611",
+      "turnId": "real-compaction-turn",
+      "compactionId": "4242519b-24d8-4cfa-8ac8-f76822fbb092",
+      "trigger": "auto",
+      "preTokens": 224491
+    },
+    {
+      "type": "compact_completed",
+      "sessionId": "real-compaction-1794019753611",
+      "turnId": "real-compaction-turn",
+      "compactionId": "4242519b-24d8-4cfa-8ac8-f76822fbb092",
+      "trigger": "auto",
+      "status": "success",
+      "preTokens": 224491,
+      "postTokens": 72649,
+      "messagesSummarized": 62,
+      "cacheReset": false,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0
+    },
+    {
+      "type": "compact_started",
+      "sessionId": "real-compaction-1794019753611",
+      "turnId": "real-compaction-turn-2",
+      "compactionId": "4862f150-a0e8-4e8b-9a49-a80e7068428b",
+      "trigger": "auto",
+      "preTokens": 297180
+    },
+    {
+      "type": "compact_completed",
+      "sessionId": "real-compaction-1794019753611",
+      "turnId": "real-compaction-turn-2",
+      "compactionId": "4862f150-a0e8-4e8b-9a49-a80e7068428b",
+      "trigger": "auto",
+      "status": "success",
+      "preTokens": 297180,
+      "postTokens": 72694,
+      "messagesSummarized": 544,
+      "cacheReset": true,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0
+    }
+  ],
+  "agentEventTypes": [
+    "session_started",
+    "setup_completed",
+    "turn_started",
+    "input_accepted",
+    "user_prompt_submitted",
+    "turn_continued",
+    "model_request_started",
+    "context_budget",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "assistant_message",
+    "stop_requested",
+    "turn_completed",
+    "session_ended"
+  ],
+  "secondAgentEventTypes": [
+    "session_started",
+    "setup_completed",
+    "turn_started",
+    "input_accepted",
+    "user_prompt_submitted",
+    "instructions_loaded",
+    "turn_continued",
+    "model_request_started",
+    "context_budget",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "assistant_message",
+    "stop_requested",
+    "turn_completed",
+    "session_ended"
+  ],
+  "tokenCountSources": [
+    "calibrated"
+  ],
+  "replayMessages": 483,
+  "replacementMessages": 482,
+  "finalTextPreview": "The second repository inspection is complete.",
+  "transcriptPath": "/root/pilotdeck/tmp/pilotdeck-real-compaction-e2e-yeEANi/projects/root-pilotdeck/chats/real-compaction-1794019753611.jsonl"
+}
+report=/root/pilotdeck/tmp/pilotdeck-real-compaction-e2e-yeEANi/real-compaction-report.json

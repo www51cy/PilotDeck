@@ -54,7 +54,7 @@
 - 环境：Node `v22.13.0`，`tsx 4.22.3`。
 - 退出码：0。
 - 结果：3 项通过、0 失败、0 取消、0 跳过、0 todo；总耗时约 2.19 秒。
-- 原始输出：`tmp/capability-alignment/exe-01-baseline.tap`，875 字节。
+- 原始输出：`docs/capability-alignment/evidence/exe-01/exe-01-baseline.tap`，875 字节。
 - 日志 SHA-256：`165b2fddf8cf088d16f16f4654f738d0a1c6cc3223d22436416a588b367f3058`。
 
 实际命令：
@@ -74,7 +74,7 @@ env -C /root/pilotdeck PATH="/root/.local/share/pilotdeck-node/node-v22.13.0-lin
 - 时间：2026-11-06T14:49:21+08:00 至 2026-11-06T14:49:22+08:00。
 - 环境：Bun `1.3.11`（`af24e281`）。
 - 退出码：0；结果：3 项通过、0 失败，耗时约 1.95 秒。
-- 原始输出：`tmp/capability-alignment/exe-01-bun.txt`，80 字节。
+- 原始输出：`docs/capability-alignment/evidence/exe-01/exe-01-bun.txt`，80 字节。
 - 输出 SHA-256：`978ae46aae6dfac9dbbea8a7ca1b586123fff59340e6a235efc9e649d4193eaa`。
 
 实际命令：

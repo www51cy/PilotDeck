@@ -63,9 +63,9 @@ WebSocket 重连成功后，前端应重新对齐当前会话的消息状态：
 
 - 根因落实为 `reconnectRecovery.ts` 在 `isLoading` 或当前会话 processing 时跳过 `refreshFromServer`。现改为当前会话无论是否运行都在重连后重新拉取有界消息窗口；既有 store reconciliation 继续保留未持久化流式消息，不在本路径清空 realtime。
 - 新增组件接线测试，直接调用 `ChatInterfaceV2` 的重连回调，断言运行中仍刷新并请求活动轮次；新增 close 1001 故障注入测试，断言重连后的消息数从 1 追平到 API 模拟结果的 2。
-- 预注册旧实现证据：`tmp/ui-001-prereg-baseline.txt`，3 项失败；close 1001 临时回退证据：`tmp/ui-001-close-1001-revert-results.txt`，刷新调用为 0、测试失败。修复恢复后通过。
-- 两个 UI 问题的最终组合回归为 5 个文件、43/43 通过，见 `tmp/ui-001-ui-002-final-results.txt`；其中本项含消息 reconciliation 27 项回归。生产构建成功，见 `tmp/ui-001-ui-002-build.txt`。
+- 预注册旧实现证据：`docs/issues/evidence/ui-001-prereg-baseline.txt`，3 项失败；close 1001 临时回退证据：`docs/issues/evidence/ui-001-close-1001-revert-results.txt`，刷新调用为 0、测试失败。修复恢复后通过。
+- 两个 UI 问题的最终组合回归为 5 个文件、43/43 通过，见 `docs/issues/evidence/ui-001-ui-002-final-results.txt`；其中本项含消息 reconciliation 27 项回归。生产构建成功，见 `docs/issues/evidence/ui-001-ui-002-build.txt`。
 - 零上下文 Verification 独立复核 `PASS`、无阻断发现，并独立复跑 43/43。close code 没有专属产品分支，测试证明的是通用重连链在原守卫下失败、修复后恢复，不声称 1001 有特殊处理。
-- 类型检查仍有桌面端 Electron 类型缺失的 4 个既有错误；ESLint 只有测试文件既有 import order 警告，分别见 `tmp/ui-001-ui-002-typecheck.txt`、`tmp/ui-001-ui-002-eslint.txt`。未安装依赖或顺手修改无关文件。
+- 类型检查仍有桌面端 Electron 类型缺失的 4 个既有错误；ESLint 只有测试文件既有 import order 警告，分别见 `docs/issues/evidence/ui-001-ui-002-typecheck.txt`、`docs/issues/evidence/ui-001-ui-002-eslint.txt`。未安装依赖或顺手修改无关文件。
 - 证据边界：自动测试使用 jsdom、模拟 WebSocket 和模拟 API 消费侧；组件接线测试另覆盖真实 `ChatInterfaceV2` 回调。尚未重启真实服务做浏览器端到端验收，因此本状态不等于生产场景完整闭合。
 - 非阻断发现处置：空 `sessionId` 由唯一生产调用点的 `selectedSession` 保证，不新增无意义输入分支；保留参数类型以免扩大调用面改动；手动折叠和真实浏览器缺口不冒充已覆盖，后者保留为后续验收面。

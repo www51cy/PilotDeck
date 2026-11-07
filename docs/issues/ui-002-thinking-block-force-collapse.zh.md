@@ -59,7 +59,7 @@ if (view.streaming !== isStreaming) setView({ streaming: isStreaming, expanded: 
 
 - 本次按方案 A 实施：`ThinkingBlock` 改用可空的手动覆盖值，流式相位只提供默认值；用户手动选择后，结束和后续流式相位均不再覆盖。未触碰的块仍在结束时默认折叠。
 - 新增“流式中折叠再展开 → 完成 → 再流式 → 再完成”回归测试，手动展开始终保留；既有未触碰自动折叠用例不变并继续通过。
-- 首次基线暴露测试文件缺少 cleanup 的夹具问题，只补测试隔离，未改预期。有效旧实现证据为 `tmp/ui-002-prereg-baseline.txt`：新增用例在结束时得到 `aria-expanded=false`，按预期失败。
-- 两个 UI 问题最终组合回归 5 个文件、43/43 通过，生产构建成功，分别见 `tmp/ui-001-ui-002-final-results.txt`、`tmp/ui-001-ui-002-build.txt`；零上下文 Verification 独立复核 `PASS`、无阻断发现。
+- 首次基线暴露测试文件缺少 cleanup 的夹具问题，只补测试隔离，未改预期。有效旧实现证据为 `docs/issues/evidence/ui-002-prereg-baseline.txt`：新增用例在结束时得到 `aria-expanded=false`，按预期失败。
+- 两个 UI 问题最终组合回归 5 个文件、43/43 通过，生产构建成功，分别见 `docs/issues/evidence/ui-001-ui-002-final-results.txt`、`docs/issues/evidence/ui-001-ui-002-build.txt`；零上下文 Verification 独立复核 `PASS`、无阻断发现。
 - `<div hidden>` 全挂载保持原样，未混入本次语义修复。当前证据是组件级行为，不外推为所有真实页面弹窗场景均已验收。
 - 非阻断发现处置：手动折叠跨相位在实现上与手动展开共用同一可空覆盖值，但本轮登记只对手动展开增加直接断言；不据此扩大验收声明。

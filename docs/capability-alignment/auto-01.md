@@ -20,8 +20,8 @@
 - PilotDeck：`/root/pilotdeck`，记录时 HEAD `0017523904c46c72ec55ed61bc8cc95129964667`。
 - PilotDeck 工作区存在其他工作线的未提交修改。其中已核对的 `src/cli/createLocalGateway.ts` 差异是在会话消息读取处补充活动轮次标识，与模型选择无关；这些修改均不纳入本报告证据所有权。本报告的静态结论属于当前工作区；运行态结论属于实测时的 18789 进程，不能笼统归因于上述 HEAD。
 - PilotDeck 使用钉版 Node `v22.13.0` 和仓库现有 `tsx`；Claude 使用当前源码的 `bun run start`。
-- 只新增或更新 `docs/capability-alignment` 与 `tmp/capability-alignment` 工件，没有修改业务源码或正式测试。
-- 原始输出与派生记录的 SHA-256 见 `tmp/capability-alignment/auto-01-artifacts.sha256`。
+- 只新增或更新 `docs/capability-alignment` 及其 `evidence/auto-01` 工件，没有修改业务源码或正式测试。
+- 原始输出与派生记录的 SHA-256 见 `docs/capability-alignment/evidence/auto-01/auto-01-artifacts.sha256`。
 
 ## 实测矩阵
 

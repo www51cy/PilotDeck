@@ -1,0 +1,304 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="T1: 80 percent warning runs full summary before the blocking tier" time="0.008867" classname="test" failure="80% warning must compact">
+		<failure type="testCodeFailure" message="80% warning must compact">
+[Error [ERR_TEST_FAILURE]: 80% warning must compact] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: 80% warning must compact
+      at TestContext.&lt;anonymous> (/root/pilotdeck/tmp/compaction-prereg-baseline/tests/context/auto-compaction-reliability.prereg.spec.ts:81:43)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: undefined,
+    operator: 'fail'
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="T2: micro pruning below 80 percent finishes without a summary call" time="1.053507" classname="test"/>
+	<testcase name="E1: failed summaries expose real emergency truncation without a fake checkpoint" time="0.010745" classname="test" failure="Expected values to be strictly deep-equal:+ actual - expected+ undefined- {-   postTokens: 100,-   preTokens: 1900- }">
+		<failure type="testCodeFailure" message="Expected values to be strictly deep-equal:+ actual - expected+ undefined- {-   postTokens: 100,-   preTokens: 1900- }">
+[Error [ERR_TEST_FAILURE]: Expected values to be strictly deep-equal:
++ actual - expected
+
++ undefined
+- {
+-   postTokens: 100,
+-   preTokens: 1900
+- }
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + undefined
+  - {
+  -   postTokens: 100,
+  -   preTokens: 1900
+  - }
+  
+      at TestContext.&lt;anonymous> (/root/pilotdeck/tmp/compaction-prereg-baseline/tests/context/auto-compaction-reliability.prereg.spec.ts:175:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: { preTokens: 1900, postTokens: 100 },
+    operator: 'deepStrictEqual'
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="B1: first summary request enforces a non-vacuous total input budget" time="1.058051" classname="test" failure="summary input was 4287, unbounded was 4287">
+		<failure type="testCodeFailure" message="summary input was 4287, unbounded was 4287">
+[Error [ERR_TEST_FAILURE]: summary input was 4287, unbounded was 4287] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: summary input was 4287, unbounded was 4287
+      at TestContext.&lt;anonymous> (/root/pilotdeck/tmp/compaction-prereg-baseline/tests/context/compaction-reliability.prereg.spec.ts:68:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '=='
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="R1: output length retries three times with strictly smaller inputs and rejects truncation" time="0.002446" classname="test" failure="Expected values to be strictly equal:1 !== 3">
+		<failure type="testCodeFailure" message="Expected values to be strictly equal:1 !== 3">
+[Error [ERR_TEST_FAILURE]: Expected values to be strictly equal:
+
+1 !== 3
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 3
+  
+      at TestContext.&lt;anonymous> (/root/pilotdeck/tmp/compaction-prereg-baseline/tests/context/compaction-reliability.prereg.spec.ts:95:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 3,
+    operator: 'strictEqual'
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="R2: provider prompt_too_long retries with smaller input and can recover" time="0.002015" classname="test" failure="Expected values to be strictly equal:+ actual - expected+ 'prompt_too_long: summary input exceeds the context window'- undefined">
+		<failure type="testCodeFailure" message="Expected values to be strictly equal:+ actual - expected+ 'prompt_too_long: summary input exceeds the context window'- undefined">
+[Error [ERR_TEST_FAILURE]: Expected values to be strictly equal:
++ actual - expected
+
++ 'prompt_too_long: summary input exceeds the context window'
+- undefined
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'prompt_too_long: summary input exceeds the context window'
+  - undefined
+  
+      at TestContext.&lt;anonymous> (/root/pilotdeck/tmp/compaction-prereg-baseline/tests/context/compaction-reliability.prereg.spec.ts:148:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'prompt_too_long: summary input exceeds the context window',
+    expected: undefined,
+    operator: 'strictEqual'
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="F1: three failures open a circuit and permit only one half-open probe" time="0.004537" classname="test" failure="Expected values to be strictly equal:1 !== 3">
+		<failure type="testCodeFailure" message="Expected values to be strictly equal:1 !== 3">
+[Error [ERR_TEST_FAILURE]: Expected values to be strictly equal:
+
+1 !== 3
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 3
+  
+      at TestContext.&lt;anonymous> (/root/pilotdeck/tmp/compaction-prereg-baseline/tests/context/compaction-reliability.prereg.spec.ts:191:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 3,
+    operator: 'strictEqual'
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="F2: manual compaction is an explicit recovery exit from the circuit" time="0.003891" classname="test" failure="Expected values to be strictly equal:1 !== 3">
+		<failure type="testCodeFailure" message="Expected values to be strictly equal:1 !== 3">
+[Error [ERR_TEST_FAILURE]: Expected values to be strictly equal:
+
+1 !== 3
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 3
+  
+      at TestContext.&lt;anonymous> (/root/pilotdeck/tmp/compaction-prereg-baseline/tests/context/compaction-reliability.prereg.spec.ts:231:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 3,
+    operator: 'strictEqual'
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="C1: the first failure retains the 60 second cooldown" time="0.003421" classname="test" failure="Expected values to be strictly equal:1 !== 2">
+		<failure type="testCodeFailure" message="Expected values to be strictly equal:1 !== 2">
+[Error [ERR_TEST_FAILURE]: Expected values to be strictly equal:
+
+1 !== 2
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 2
+  
+      at TestContext.&lt;anonymous> (/root/pilotdeck/tmp/compaction-prereg-baseline/tests/context/compaction-reliability.prereg.spec.ts:269:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 2,
+    operator: 'strictEqual'
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="E2: AgentLoop persists an emergency_truncate snapshot without summary success" time="0.018878" classname="test" failure="Expected values to be strictly equal:0 !== 1">
+		<failure type="testCodeFailure" message="Expected values to be strictly equal:0 !== 1">
+[Error [ERR_TEST_FAILURE]: Expected values to be strictly equal:
+
+0 !== 1
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 1
+  
+      at TestContext.&lt;anonymous> (/root/pilotdeck/tmp/compaction-prereg-baseline/tests/session/emergency-compaction-persistence.prereg.spec.ts:125:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual'
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="E3: TurnRunner and JSONL writer durably flush a complete emergency snapshot" time="0.052827" classname="test" failure="Expected values to be strictly equal:false !== true">
+		<failure type="testCodeFailure" message="Expected values to be strictly equal:false !== true">
+[Error [ERR_TEST_FAILURE]: Expected values to be strictly equal:
+
+false !== true
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  false !== true
+  
+      at TestContext.&lt;anonymous> (/root/pilotdeck/tmp/compaction-prereg-baseline/tests/session/emergency-compaction-persistence.prereg.spec.ts:211:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual'
+  }
+}
+		</failure>
+	</testcase>
+	<testcase name="E4: replay accepts only complete emergency snapshots and retains raw history" time="0.003378" classname="test" failure="Expected values to be strictly deep-equal:+ actual - expected  [    {      content: [        {+         text: 'original context',-         text: 'latest request',          type: 'text'        }      ],      role: 'user'    },">
+		<failure type="testCodeFailure" message="Expected values to be strictly deep-equal:+ actual - expected  [    {      content: [        {+         text: 'original context',-         text: 'latest request',          type: 'text'        }      ],      role: 'user'    },">
+[Error [ERR_TEST_FAILURE]: Expected values to be strictly deep-equal:
++ actual - expected
+
+  [
+    {
+      content: [
+        {
++         text: 'original context',
+-         text: 'latest request',
+          type: 'text'
+        }
+      ],
+      role: 'user'
+    },
+] {
+  code: 'ERR_TEST_FAILURE',
+  failureType: 'testCodeFailure',
+  cause: AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    [
+      {
+        content: [
+          {
+  +         text: 'original context',
+  -         text: 'latest request',
+            type: 'text'
+          }
+        ],
+        role: 'user'
+      },
+  
+      at TestContext.&lt;anonymous> (/root/pilotdeck/tmp/compaction-prereg-baseline/tests/session/emergency-compaction-persistence.prereg.spec.ts:260:10)
+      at Test.runInAsyncScope (node:async_hooks:211:14)
+      at Test.run (node:internal/test_runner/test:931:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:629:18)
+      at Test.postRun (node:internal/test_runner/test:1042:19)
+      at Test.run (node:internal/test_runner/test:970:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [Object], [Object] ],
+    expected: [ [Object], [Object] ],
+    operator: 'deepStrictEqual'
+  }
+}
+		</failure>
+	</testcase>
+	<!-- tests 12 -->
+	<!-- suites 0 -->
+	<!-- pass 1 -->
+	<!-- fail 11 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 2066.002558 -->
+</testsuites>

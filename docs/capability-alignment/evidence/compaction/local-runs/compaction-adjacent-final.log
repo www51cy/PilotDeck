@@ -1,0 +1,528 @@
+[context:auto-compact] policy_trigger {"sessionId":"","turnId":"","reason":"blocking_threshold","snapshot":{"tokens":83,"estimateSource":"estimator","totalContextTokens":1,"maxContextTokens":1,"effectiveContextTokens":1,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":83,"reservedOutputTokens":0},"messages":7}
+[context:auto-compact] full_compaction_started {"sessionId":"","turnId":"","messages":7,"snapshot":{"tokens":83,"estimateSource":"estimator","totalContextTokens":1,"maxContextTokens":1,"effectiveContextTokens":1,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":83,"reservedOutputTokens":0}}
+[context:auto-compact] full_compaction_no_summary {"sessionId":"","turnId":"","error":"Summary input budget is too small for the summary control prompt","preTokens":83}
+[context:auto-compact] emergency_head_truncate {"sessionId":"","turnId":"","snapshot":{"tokens":10,"estimateSource":"estimator","totalContextTokens":1,"maxContextTokens":1,"effectiveContextTokens":1,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":10,"reservedOutputTokens":0},"keepRatio":0.1}
+[context:auto-compact] full_compaction_completed {"sessionId":"","turnId":"","snapshot":{"tokens":10,"estimateSource":"estimator","totalContextTokens":1,"maxContextTokens":1,"effectiveContextTokens":1,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":10,"reservedOutputTokens":0},"summarySucceeded":false,"summaryGenerated":false,"checkpointMerged":false,"targetPostTokens":1,"preTokens":83}
+[context:auto-compact] context_overflow_after_emergency_compaction {"sessionId":"","turnId":"","snapshot":{"tokens":10,"estimateSource":"estimator","totalContextTokens":1,"maxContextTokens":1,"effectiveContextTokens":1,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":10,"reservedOutputTokens":0},"diagnostic":"Context remains over the effective input budget after emergency compaction (tokens=10, max=1, ratio=10.000). The stable checkpoint, current request, tool protocol, and required tail are the remaining sources."}
+[context:auto-compact] policy_trigger {"sessionId":"","turnId":"","reason":"blocking_threshold","snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0},"messages":7}
+[context:auto-compact] full_compaction_started {"sessionId":"","turnId":"","messages":7,"snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0}}
+[context:auto-compact] full_compaction_no_summary {"sessionId":"","turnId":"","error":"Summary input budget is too small for the summary control prompt","preTokens":72}
+[context:auto-compact] full_compaction_skipped {"sessionId":"","turnId":"","reason":"no_effective_change","targetPostTokens":60,"snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0}}
+[context:auto-compact] policy_trigger {"sessionId":"","turnId":"","reason":"blocking_threshold","snapshot":{"tokens":72,"estimateSource":"estimator","totalContextTokens":1,"maxContextTokens":1,"effectiveContextTokens":1,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":72,"reservedOutputTokens":0},"messages":7}
+[context:auto-compact] full_compaction_started {"sessionId":"","turnId":"","messages":7,"snapshot":{"tokens":72,"estimateSource":"estimator","totalContextTokens":1,"maxContextTokens":1,"effectiveContextTokens":1,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":72,"reservedOutputTokens":0}}
+[context:auto-compact] full_compaction_no_summary {"sessionId":"","turnId":"","error":"Summary input budget is too small for the summary control prompt","preTokens":72}
+[context:auto-compact] emergency_head_truncate {"sessionId":"","turnId":"","snapshot":{"tokens":10,"estimateSource":"estimator","totalContextTokens":1,"maxContextTokens":1,"effectiveContextTokens":1,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":10,"reservedOutputTokens":0},"keepRatio":0.1}
+[context:auto-compact] full_compaction_completed {"sessionId":"","turnId":"","snapshot":{"tokens":10,"estimateSource":"estimator","totalContextTokens":1,"maxContextTokens":1,"effectiveContextTokens":1,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":10,"reservedOutputTokens":0},"summarySucceeded":false,"summaryGenerated":false,"checkpointMerged":false,"targetPostTokens":1,"preTokens":72}
+[context:auto-compact] context_overflow_after_emergency_compaction {"sessionId":"","turnId":"","snapshot":{"tokens":10,"estimateSource":"estimator","totalContextTokens":1,"maxContextTokens":1,"effectiveContextTokens":1,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":10,"reservedOutputTokens":0},"diagnostic":"Context remains over the effective input budget after emergency compaction (tokens=10, max=1, ratio=10.000). The stable checkpoint, current request, tool protocol, and required tail are the remaining sources."}
+[context:auto-compact] policy_trigger {"sessionId":"","turnId":"","reason":"blocking_threshold","snapshot":{"tokens":120,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.2,"reservedOutputTokens":0},"messages":6}
+[context:auto-compact] pre_summary_prune {"sessionId":"","turnId":"","rewritten":0,"rewrittenBytes":0,"snapshot":{"tokens":120,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.2,"reservedOutputTokens":0}}
+[context:auto-compact] full_compaction_started {"sessionId":"","turnId":"","messages":6,"snapshot":{"tokens":120,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.2,"reservedOutputTokens":0}}
+[context:auto-compact] full_compaction_no_summary {"sessionId":"","turnId":"","reason":"no_summarizable_live_turns","preTokens":18056}
+[context:auto-compact] emergency_tool_projection {"sessionId":"","turnId":"","rewritten":0,"snapshot":{"tokens":120,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.2,"reservedOutputTokens":0}}
+[context:auto-compact] emergency_head_truncate {"sessionId":"","turnId":"","snapshot":{"tokens":120,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.2,"reservedOutputTokens":0},"keepRatio":0.1}
+[context:auto-compact] full_compaction_completed {"sessionId":"","turnId":"","snapshot":{"tokens":120,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.2,"reservedOutputTokens":0},"summarySucceeded":false,"summaryGenerated":false,"checkpointMerged":false,"targetPostTokens":60,"preTokens":18056}
+[context:auto-compact] context_overflow_after_emergency_compaction {"sessionId":"","turnId":"","snapshot":{"tokens":120,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.2,"reservedOutputTokens":0},"diagnostic":"Context remains over the effective input budget after emergency compaction (tokens=120, max=100, ratio=1.200). The stable checkpoint, current request, tool protocol, and required tail are the remaining sources."}
+[context:auto-compact] policy_trigger {"sessionId":"","turnId":"","reason":"warning_threshold","snapshot":{"tokens":86,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"warning","ratio":0.86,"reservedOutputTokens":0},"messages":10}
+[context:auto-compact] pre_summary_prune {"sessionId":"","turnId":"","rewritten":1,"rewrittenBytes":10800,"snapshot":{"tokens":86,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"warning","ratio":0.86,"reservedOutputTokens":0}}
+[context:auto-compact] full_compaction_started {"sessionId":"","turnId":"","messages":10,"snapshot":{"tokens":86,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"warning","ratio":0.86,"reservedOutputTokens":0}}
+[context:auto-compact] full_compaction_no_summary {"sessionId":"","turnId":"","error":"Summary input budget is too small for the summary control prompt","preTokens":15278}
+[context:auto-compact] full_compaction_skipped {"sessionId":"","turnId":"","reason":"no_effective_change","targetPostTokens":60,"snapshot":{"tokens":86,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"warning","ratio":0.86,"reservedOutputTokens":0}}
+[context:auto-compact] policy_trigger {"sessionId":"","turnId":"","reason":"blocking_threshold","snapshot":{"tokens":100,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1,"reservedOutputTokens":0},"messages":24}
+[context:auto-compact] full_compaction_started {"sessionId":"","turnId":"","messages":24,"snapshot":{"tokens":100,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1,"reservedOutputTokens":0}}
+[context:auto-compact] full_compaction_no_summary {"sessionId":"","turnId":"","error":"Summary input budget is too small for the summary control prompt","preTokens":168}
+[context:auto-compact] emergency_head_truncate {"sessionId":"","turnId":"","snapshot":{"tokens":100,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1,"reservedOutputTokens":0},"keepRatio":0.1}
+[context:auto-compact] full_compaction_completed {"sessionId":"","turnId":"","snapshot":{"tokens":100,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1,"reservedOutputTokens":0},"summarySucceeded":false,"summaryGenerated":false,"checkpointMerged":false,"targetPostTokens":60,"preTokens":168}
+[context:auto-compact] context_overflow_after_emergency_compaction {"sessionId":"","turnId":"","snapshot":{"tokens":100,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1,"reservedOutputTokens":0},"diagnostic":"Context remains over the effective input budget after emergency compaction (tokens=100, max=100, ratio=1.000). The stable checkpoint, current request, tool protocol, and required tail are the remaining sources."}
+[context:auto-compact] policy_trigger {"sessionId":"","turnId":"","reason":"blocking_threshold","snapshot":{"tokens":70000,"estimateSource":"estimator","totalContextTokens":110000,"maxContextTokens":44464,"effectiveContextTokens":44464,"maxOutputTokens":65536,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.5743073047858942,"reservedOutputTokens":65536},"messages":40,"reservedOutputTokens":65536}
+[context:auto-compact] full_compaction_started {"sessionId":"","turnId":"","messages":40,"snapshot":{"tokens":70000,"estimateSource":"estimator","totalContextTokens":110000,"maxContextTokens":44464,"effectiveContextTokens":44464,"maxOutputTokens":65536,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.5743073047858942,"reservedOutputTokens":65536}}
+[context:auto-compact] full_compaction_completed {"sessionId":"","turnId":"","snapshot":{"tokens":26000,"estimateSource":"estimator","totalContextTokens":110000,"maxContextTokens":44464,"effectiveContextTokens":44464,"maxOutputTokens":65536,"warningRatio":0.8,"blockingRatio":0.9,"state":"ok","ratio":0.5847427132061893,"reservedOutputTokens":65536},"summarySucceeded":true,"summaryGenerated":true,"checkpointMerged":false,"targetPostTokens":26678,"preTokens":6200,"postTokens":730}
+[context:auto-compact] policy_trigger {"sessionId":"","turnId":"","reason":"blocking_threshold","snapshot":{"tokens":70000,"estimateSource":"estimator","totalContextTokens":110000,"maxContextTokens":77232,"effectiveContextTokens":77232,"maxOutputTokens":32768,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.9063600580070437,"reservedOutputTokens":32768},"messages":40,"reservedOutputTokens":32768}
+[context:auto-compact] full_compaction_started {"sessionId":"","turnId":"","messages":40,"snapshot":{"tokens":70000,"estimateSource":"estimator","totalContextTokens":110000,"maxContextTokens":77232,"effectiveContextTokens":77232,"maxOutputTokens":32768,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.9063600580070437,"reservedOutputTokens":32768}}
+[context:auto-compact] full_compaction_completed {"sessionId":"","turnId":"","snapshot":{"tokens":46000,"estimateSource":"estimator","totalContextTokens":110000,"maxContextTokens":77232,"effectiveContextTokens":77232,"maxOutputTokens":32768,"warningRatio":0.8,"blockingRatio":0.9,"state":"ok","ratio":0.5956080381189144,"reservedOutputTokens":32768},"summarySucceeded":true,"summaryGenerated":true,"checkpointMerged":false,"targetPostTokens":46339,"preTokens":6200,"postTokens":730}
+[context:auto-compact] policy_trigger {"sessionId":"","turnId":"","reason":"blocking_threshold","snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0},"messages":1}
+[context:auto-compact] full_compaction_started {"sessionId":"","turnId":"","messages":1,"snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0}}
+[context:auto-compact] full_compaction_no_summary {"sessionId":"","turnId":"","reason":"no_summarizable_live_turns","preTokens":8}
+[context:auto-compact] emergency_head_truncate {"sessionId":"","turnId":"","snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0},"keepRatio":0.1}
+[context:auto-compact] full_compaction_skipped {"sessionId":"","turnId":"","reason":"no_effective_change","targetPostTokens":60,"snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0}}
+[context:auto-compact] policy_trigger {"sessionId":"","turnId":"","reason":"blocking_threshold","snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0},"messages":3}
+[context:auto-compact] full_compaction_started {"sessionId":"","turnId":"","messages":3,"snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0}}
+[context:auto-compact] full_compaction_no_summary {"sessionId":"","turnId":"","error":"Summary input budget is too small for the summary control prompt","preTokens":94}
+[context:auto-compact] emergency_head_truncate {"sessionId":"","turnId":"","snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0},"keepRatio":0.1}
+[context:auto-compact] full_compaction_skipped {"sessionId":"","turnId":"","reason":"no_effective_change","targetPostTokens":60,"snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0}}
+[context:auto-compact] policy_trigger {"sessionId":"","turnId":"","reason":"blocking_threshold","snapshot":{"tokens":110,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.1,"reservedOutputTokens":0},"messages":1}
+[context:auto-compact] full_compaction_started {"sessionId":"","turnId":"","messages":1,"snapshot":{"tokens":110,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.1,"reservedOutputTokens":0}}
+[context:auto-compact] full_compaction_no_summary {"sessionId":"","turnId":"","reason":"no_summarizable_live_turns","preTokens":8}
+[context:auto-compact] emergency_head_truncate {"sessionId":"","turnId":"","snapshot":{"tokens":110,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.1,"reservedOutputTokens":0},"keepRatio":0.1}
+[context:auto-compact] full_compaction_completed {"sessionId":"","turnId":"","snapshot":{"tokens":110,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.1,"reservedOutputTokens":0},"summarySucceeded":false,"summaryGenerated":false,"checkpointMerged":false,"targetPostTokens":60,"preTokens":8}
+[context:auto-compact] context_overflow_after_emergency_compaction {"sessionId":"","turnId":"","snapshot":{"tokens":110,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.1,"reservedOutputTokens":0},"diagnostic":"Context remains over the effective input budget after emergency compaction (tokens=110, max=100, ratio=1.100). The stable checkpoint, current request, tool protocol, and required tail are the remaining sources."}
+[context:auto-compact] policy_trigger {"sessionId":"","turnId":"","reason":"blocking_threshold","snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0},"messages":20}
+[context:auto-compact] full_compaction_started {"sessionId":"","turnId":"","messages":20,"snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0}}
+[context:auto-compact] full_compaction_no_summary {"sessionId":"","turnId":"","error":"Summary input budget is too small for the summary control prompt","preTokens":140}
+[context:auto-compact] emergency_head_truncate {"sessionId":"","turnId":"","snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0},"keepRatio":0.1}
+[context:auto-compact] full_compaction_completed {"sessionId":"","turnId":"","snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0},"summarySucceeded":false,"summaryGenerated":false,"checkpointMerged":false,"targetPostTokens":60,"preTokens":140}
+✖ auto-compaction summarizes earlier work instead of deleting it (749.724854ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  false !== true
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/autoCompaction.spec.ts:52:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual'
+  }
+
+✔ auto-compaction keeps the original transcript when summary generation fails (4.206ms)
+✔ reactive summary failure uses emergency truncation without fabricating a checkpoint (4.037099ms)
+✖ protected early tool turns do not bypass emergency compaction (125.589093ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 1
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/autoCompaction.spec.ts:214:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual'
+  }
+
+✖ 80% pre-summary prune can stay below 90% without calling the summary model (61.172996ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'skipped'
+  - 'compacted'
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/autoCompaction.spec.ts:245:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'skipped',
+    expected: 'compacted',
+    operator: 'strictEqual'
+  }
+
+✖ summary runs before post-summary snip and keeps the compact checkpoint (4.0189ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'emergency'
+  - 'full'
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/autoCompaction.spec.ts:281:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'emergency',
+    expected: 'full',
+    operator: 'strictEqual'
+  }
+
+✔ targeted snip can prune tool cycles inside one user task (3.042399ms)
+✔ emergency head truncation keeps the latest task query (0.3564ms)
+✔ query anchoring excludes synthetic and internal user messages (0.5056ms)
+✔ query anchoring excludes inline supplemental media from tool results (0.8788ms)
+✔ emergency head truncation preserves empty history (0.1397ms)
+✔ request anchoring skips hook context before a multi-turn tool cycle (0.1928ms)
+✔ full compaction targets 60% of the effective input budget (96.744894ms)
+✔ zero-message summaries are skipped when compaction makes no effective change (1.304ms)
+✖ rolling-summary replacement with no live history succeeds without emergency compaction (8.2548ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'skipped'
+  - 'compacted'
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/autoCompaction.spec.ts:557:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'skipped',
+    expected: 'compacted',
+    operator: 'strictEqual'
+  }
+
+✔ zero-message compaction reports overflow instead of skipped above the hard budget (0.8995ms)
+✔ pre-summary tool projection is idempotent (29.905398ms)
+✔ per-call protected-tool overrides replace the constructor set (82.825995ms)
+✖ emergency summary remains persistable after a later head truncation (14.305099ms)
+  AssertionError [ERR_ASSERTION]: false == true
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/autoCompaction.spec.ts:709:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '=='
+  }
+
+✔ emergency tool projection may tighten a bounded preview once, then remains idempotent (109.172593ms)
+[context:auto-compact] policy_trigger {"sessionId":"","turnId":"","reason":"blocking_threshold","snapshot":{"tokens":200,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":2,"reservedOutputTokens":0},"messages":9}
+[context:auto-compact] full_compaction_started {"sessionId":"","turnId":"","messages":9,"snapshot":{"tokens":200,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":2,"reservedOutputTokens":0}}
+[context:auto-compact] full_compaction_no_summary {"sessionId":"","turnId":"","error":"Summary input budget is too small for the summary control prompt","preTokens":1896}
+[context:auto-compact] emergency_head_truncate {"sessionId":"","turnId":"","snapshot":{"tokens":20,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"ok","ratio":0.2,"reservedOutputTokens":0},"keepRatio":0.1}
+[context:auto-compact] full_compaction_completed {"sessionId":"","turnId":"","snapshot":{"tokens":20,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"ok","ratio":0.2,"reservedOutputTokens":0},"summarySucceeded":false,"summaryGenerated":false,"checkpointMerged":false,"targetPostTokens":60,"preTokens":1896}
+[context:auto-compact] policy_trigger {"sessionId":"","turnId":"","reason":"blocking_threshold","snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0},"messages":9}
+[context:auto-compact] full_compaction_started {"sessionId":"","turnId":"","messages":9,"snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0}}
+[context:auto-compact] full_compaction_no_summary {"sessionId":"","turnId":"","error":"Summary input budget is too small for the summary control prompt","preTokens":1896}
+[context:auto-compact] emergency_head_truncate {"sessionId":"","turnId":"","snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0},"keepRatio":0.1}
+[context:auto-compact] full_compaction_completed {"sessionId":"","turnId":"","snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0},"summarySucceeded":false,"summaryGenerated":false,"checkpointMerged":false,"targetPostTokens":60,"preTokens":1896}
+[context:auto-compact] policy_trigger {"sessionId":"","turnId":"","reason":"blocking_threshold","snapshot":{"tokens":130,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.3,"reservedOutputTokens":0},"messages":9}
+[context:auto-compact] full_compaction_started {"sessionId":"","turnId":"","messages":9,"snapshot":{"tokens":130,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.3,"reservedOutputTokens":0}}
+[context:auto-compact] full_compaction_no_summary {"sessionId":"","turnId":"","error":"Summary input budget is too small for the summary control prompt","preTokens":1896}
+[context:auto-compact] emergency_head_truncate {"sessionId":"","turnId":"","snapshot":{"tokens":120,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.2,"reservedOutputTokens":0},"keepRatio":0.1}
+[context:auto-compact] full_compaction_completed {"sessionId":"","turnId":"","snapshot":{"tokens":120,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.2,"reservedOutputTokens":0},"summarySucceeded":false,"summaryGenerated":false,"checkpointMerged":false,"targetPostTokens":60,"preTokens":1896}
+[context:auto-compact] context_overflow_after_emergency_compaction {"sessionId":"","turnId":"","snapshot":{"tokens":120,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.2,"reservedOutputTokens":0},"diagnostic":"Context remains over the effective input budget after emergency compaction (tokens=120, max=100, ratio=1.200). The stable checkpoint, current request, tool protocol, and required tail are the remaining sources."}
+[context:auto-compact] policy_trigger {"sessionId":"","turnId":"","reason":"blocking_threshold","snapshot":{"tokens":500,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":5,"reservedOutputTokens":0},"messages":16}
+[context:auto-compact] full_compaction_started {"sessionId":"","turnId":"","messages":16,"snapshot":{"tokens":500,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":5,"reservedOutputTokens":0}}
+[context:auto-compact] full_compaction_no_summary {"sessionId":"","turnId":"","error":"Summary input budget is too small for the summary control prompt","preTokens":690}
+[context:auto-compact] emergency_head_truncate {"sessionId":"","turnId":"","snapshot":{"tokens":500,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":5,"reservedOutputTokens":0},"keepRatio":0.1}
+[context:auto-compact] full_compaction_completed {"sessionId":"","turnId":"","snapshot":{"tokens":500,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":5,"reservedOutputTokens":0},"summarySucceeded":false,"summaryGenerated":false,"checkpointMerged":false,"targetPostTokens":60,"preTokens":690}
+[context:auto-compact] context_overflow_after_emergency_compaction {"sessionId":"","turnId":"","snapshot":{"tokens":500,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":5,"reservedOutputTokens":0},"diagnostic":"Context remains over the effective input budget after emergency compaction (tokens=500, max=100, ratio=5.000). The stable checkpoint, current request, tool protocol, and required tail are the remaining sources."}
+[context:auto-compact] policy_trigger {"sessionId":"","turnId":"","reason":"blocking_threshold","snapshot":{"tokens":500,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":5,"reservedOutputTokens":0},"messages":16}
+[context:auto-compact] pre_summary_prune {"sessionId":"","turnId":"","rewritten":0,"rewrittenBytes":0,"snapshot":{"tokens":500,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":5,"reservedOutputTokens":0}}
+[context:auto-compact] full_compaction_started {"sessionId":"","turnId":"","messages":16,"snapshot":{"tokens":500,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":5,"reservedOutputTokens":0}}
+[context:auto-compact] full_compaction_no_summary {"sessionId":"","turnId":"","error":"Summary input budget is too small for the summary control prompt","preTokens":690}
+[context:auto-compact] emergency_tool_projection {"sessionId":"","turnId":"","rewritten":0,"snapshot":{"tokens":500,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":5,"reservedOutputTokens":0}}
+[context:auto-compact] emergency_head_truncate {"sessionId":"","turnId":"","snapshot":{"tokens":500,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":5,"reservedOutputTokens":0},"keepRatio":0.1}
+[context:auto-compact] full_compaction_completed {"sessionId":"","turnId":"","snapshot":{"tokens":500,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":5,"reservedOutputTokens":0},"summarySucceeded":false,"summaryGenerated":false,"checkpointMerged":false,"targetPostTokens":60,"preTokens":690}
+[context:auto-compact] context_overflow_after_emergency_compaction {"sessionId":"","turnId":"","snapshot":{"tokens":500,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":5,"reservedOutputTokens":0},"diagnostic":"Context remains over the effective input budget after emergency compaction (tokens=500, max=100, ratio=5.000). The stable checkpoint, current request, tool protocol, and required tail are the remaining sources."}
+[context:auto-compact] policy_trigger {"sessionId":"","turnId":"","reason":"blocking_threshold","snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0},"messages":9}
+[context:auto-compact] full_compaction_started {"sessionId":"","turnId":"","messages":9,"snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0}}
+[context:auto-compact] full_compaction_no_summary {"sessionId":"","turnId":"","error":"Summary input budget is too small for the summary control prompt","preTokens":1896}
+[context:auto-compact] full_compaction_skipped {"sessionId":"","turnId":"","reason":"no_effective_change","targetPostTokens":60,"snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0}}
+[context:auto-compact] policy_trigger {"sessionId":"","turnId":"","reason":"blocking_threshold","snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0},"messages":9}
+[context:auto-compact] full_compaction_started {"sessionId":"","turnId":"","messages":9,"snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0}}
+[context:auto-compact] full_compaction_no_summary {"sessionId":"","turnId":"","error":"Summary input budget is too small for the summary control prompt","preTokens":1896}
+[context:auto-compact] full_compaction_skipped {"sessionId":"","turnId":"","reason":"no_effective_change","targetPostTokens":60,"snapshot":{"tokens":95,"estimateSource":"estimator","totalContextTokens":100,"maxContextTokens":100,"effectiveContextTokens":100,"maxOutputTokens":0,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.95,"reservedOutputTokens":0}}
+(node:183287) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ full compaction can disable protected turn preservation (775.299652ms)
+✔ four rolling compactions replace the previous checkpoint with one summary (36.373398ms)
+✔ a full rolling summary is rewritten even when only the required live tail remains (9.848699ms)
+✔ the first rolling compaction collapses a legacy three-checkpoint prefix (27.423498ms)
+✖ auto full compaction retries without protected turns when protected output still blocks (20.254099ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 2
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/compaction-engine.spec.ts:231:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 2,
+    operator: 'strictEqual'
+  }
+
+✖ protected turns above the 60% target stay intact without emergency below 90% (14.995299ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'emergency'
+  - 'full'
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/compaction-engine.spec.ts:287:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'emergency',
+    expected: 'full',
+    operator: 'strictEqual'
+  }
+
+✔ custom summary prompts retain runtime intent isolation constraints (13.470599ms)
+✖ auto full compaction keeps the best compacted result even when it still blocks (12.8826ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 2
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/compaction-engine.spec.ts:357:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 2,
+    operator: 'strictEqual'
+  }
+
+✔ token-budget tail protection keeps the last turn group intact (7.519799ms)
+✔ full compaction keeps the initiating user request with a protected tool cycle (8.6881ms)
+✔ summary output truncated by the provider is treated as a failed compaction (25.825198ms)
+✔ protected turns remain in chronological order with later work (4.0901ms)
+✔ full compaction bounds oversized retained tool output (142.775991ms)
+✖ auto full compaction summarizes older tool groups inside one user task (5.9716ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'emergency'
+  - 'full'
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/compaction-engine.spec.ts:574:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'emergency',
+    expected: 'full',
+    operator: 'strictEqual'
+  }
+
+✖ blocking auto compaction continues to full summary when micro pruning only reaches warning (7.970499ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'emergency'
+  - 'full'
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/compaction-engine.spec.ts:659:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'emergency',
+    expected: 'full',
+    operator: 'strictEqual'
+  }
+
+✖ summary failures preserve the original transcript and cool down retries (14.090299ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 1
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/compaction-engine.spec.ts:709:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual'
+  }
+
+✔ summary input preserves thinking blocks from the summarized prefix (5.7868ms)
+✔ summary input prunes stale tool outputs and oversized tool-call args (28.639398ms)
+ℹ tests 38
+ℹ suites 0
+ℹ pass 26
+ℹ fail 12
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2304.648454
+
+✖ failing tests:
+
+test at ../pilotdeck/tests/context/autoCompaction.spec.ts:1:857
+✖ auto-compaction summarizes earlier work instead of deleting it (749.724854ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  false !== true
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/autoCompaction.spec.ts:52:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual'
+  }
+
+test at ../pilotdeck/tests/context/autoCompaction.spec.ts:1:4596
+✖ protected early tool turns do not bypass emergency compaction (125.589093ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 1
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/autoCompaction.spec.ts:214:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual'
+  }
+
+test at ../pilotdeck/tests/context/autoCompaction.spec.ts:1:6168
+✖ 80% pre-summary prune can stay below 90% without calling the summary model (61.172996ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'skipped'
+  - 'compacted'
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/autoCompaction.spec.ts:245:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'skipped',
+    expected: 'compacted',
+    operator: 'strictEqual'
+  }
+
+test at ../pilotdeck/tests/context/autoCompaction.spec.ts:1:7033
+✖ summary runs before post-summary snip and keeps the compact checkpoint (4.0189ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'emergency'
+  - 'full'
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/autoCompaction.spec.ts:281:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'emergency',
+    expected: 'full',
+    operator: 'strictEqual'
+  }
+
+test at ../pilotdeck/tests/context/autoCompaction.spec.ts:1:15156
+✖ rolling-summary replacement with no live history succeeds without emergency compaction (8.2548ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'skipped'
+  - 'compacted'
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/autoCompaction.spec.ts:557:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'skipped',
+    expected: 'compacted',
+    operator: 'strictEqual'
+  }
+
+test at ../pilotdeck/tests/context/autoCompaction.spec.ts:1:19903
+✖ emergency summary remains persistable after a later head truncation (14.305099ms)
+  AssertionError [ERR_ASSERTION]: false == true
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/autoCompaction.spec.ts:709:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '=='
+  }
+
+test at ../pilotdeck/tests/context/compaction-engine.spec.ts:3:953
+✖ auto full compaction retries without protected turns when protected output still blocks (20.254099ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 2
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/compaction-engine.spec.ts:231:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 2,
+    operator: 'strictEqual'
+  }
+
+test at ../pilotdeck/tests/context/compaction-engine.spec.ts:3:3310
+✖ protected turns above the 60% target stay intact without emergency below 90% (14.995299ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'emergency'
+  - 'full'
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/compaction-engine.spec.ts:287:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'emergency',
+    expected: 'full',
+    operator: 'strictEqual'
+  }
+
+test at ../pilotdeck/tests/context/compaction-engine.spec.ts:3:5841
+✖ auto full compaction keeps the best compacted result even when it still blocks (12.8826ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 2
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/compaction-engine.spec.ts:357:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 2,
+    operator: 'strictEqual'
+  }
+
+test at ../pilotdeck/tests/context/compaction-engine.spec.ts:3:12633
+✖ auto full compaction summarizes older tool groups inside one user task (5.9716ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'emergency'
+  - 'full'
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/compaction-engine.spec.ts:574:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'emergency',
+    expected: 'full',
+    operator: 'strictEqual'
+  }
+
+test at ../pilotdeck/tests/context/compaction-engine.spec.ts:3:15530
+✖ blocking auto compaction continues to full summary when micro pruning only reaches warning (7.970499ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'emergency'
+  - 'full'
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/compaction-engine.spec.ts:659:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'emergency',
+    expected: 'full',
+    operator: 'strictEqual'
+  }
+
+test at ../pilotdeck/tests/context/compaction-engine.spec.ts:3:16934
+✖ summary failures preserve the original transcript and cool down retries (14.090299ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 1
+  
+      at TestContext.<anonymous> (/root/pilotdeck/tests/context/compaction-engine.spec.ts:709:10)
+      at async Test.run (node:internal/test_runner/test:932:9)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:629:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual'
+  }

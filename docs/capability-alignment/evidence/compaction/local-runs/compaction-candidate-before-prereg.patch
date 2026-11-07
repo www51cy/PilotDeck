@@ -1,0 +1,1069 @@
+diff --git a/src/context/DefaultContextRuntime.ts b/src/context/DefaultContextRuntime.ts
+index a8ca0ff5..23ac0682 100644
+--- a/src/context/DefaultContextRuntime.ts
++++ b/src/context/DefaultContextRuntime.ts
+@@ -477,7 +477,7 @@ export class DefaultContextRuntime implements ContextRuntime {
+         rewrittenBytes: micro.rewrittenBytes,
+         snapshot: describeTokenBudgetSnapshot(microSnapshot),
+       });
+-      if (microSnapshot.ratio < 0.90) {
++      if (microSnapshot.ratio < 0.80) {
+         if (micro.rewritten === 0) {
+           return { type: "skipped", snapshot: microSnapshot };
+         }
+@@ -491,10 +491,9 @@ export class DefaultContextRuntime implements ContextRuntime {
+       }
+     }
+ 
+-    // A warning-level context is usable after the deterministic phase. This
+-    // guard also preserves the 80%-90% no-summary contract when a caller did
+-    // not configure a micro-compaction engine.
+-    if (currentSnapshot.ratio < 0.90) {
++    // Below the warning threshold the deterministic phase is sufficient. At
++    // 80% and above, summarize before the context reaches the blocking tier.
++    if (currentSnapshot.ratio < 0.80) {
+       return { type: "skipped", snapshot: currentSnapshot };
+     }
+ 
+diff --git a/src/context/compaction/CompactionEngine.ts b/src/context/compaction/CompactionEngine.ts
+index a182f69b..24c9b73c 100644
+--- a/src/context/compaction/CompactionEngine.ts
++++ b/src/context/compaction/CompactionEngine.ts
+@@ -88,14 +88,19 @@ const CORE_SUMMARY_MARKDOWN_HEADINGS = [
+   "Files And Artifacts",
+ ] as const;
+ 
+-const COMPACT_SUMMARY_SYSTEM_PROMPT_DEFAULT = buildMarkdownSummarySystemPrompt(COMPACT_SYSTEM_PROMPT_DEFAULT);
+-
+ const COMPACT_SUMMARY_ANCHOR_MAX_ITEMS = 12;
+ const COMPACT_SUMMARY_ANCHOR_MAX_INPUT_CHARS = 2_000;
+ const COMPACT_SUMMARY_ANCHOR_MAX_TEXT_CHARS = 1_200;
+ const COMPACT_SUMMARY_ANCHOR_MAX_PATH_CHARS = 600;
+ const COMPACT_SUMMARY_ANCHOR_MAX_TOTAL_CHARS = 16_000;
+ const COMPACT_SUMMARY_FAILURE_COOLDOWN_MS = 60_000;
++const COMPACT_SUMMARY_MAX_ATTEMPTS = 3;
++const COMPACT_SUMMARY_RETRY_INPUT_RATIO = 0.8;
++const COMPACT_SUMMARY_RETRY_MAX_OUTPUT_TOKENS = 1_536;
++const COMPACT_SUMMARY_CONSECUTIVE_FAILURE_LIMIT = 3;
++const COMPACT_SUMMARY_CIRCUIT_OPEN_MS = 5 * 60_000;
++const COMPACT_SUMMARY_PREVIOUS_MAX_CHARS = 16_000;
++const COMPACT_SUMMARY_INSTRUCTION_MAX_CHARS = 4_000;
+ const COMPACT_SUMMARY_INPUT_TOOL_RESULT_MAX_CHARS = 2_000;
+ const COMPACT_SUMMARY_INPUT_TOOL_RESULT_PREVIEW_CHARS = 800;
+ const COMPACT_SUMMARY_INPUT_TOOL_RESULT_TAIL_CHARS = 240;
+@@ -178,12 +183,17 @@ export class CompactionEngine {
+   private readonly options: CompactionEngineOptions;
+   private readonly protectedToolNames: ReadonlySet<string>;
+   private summaryFailureCooldownUntil = 0;
++  private summaryCircuitOpenUntil = 0;
++  private consecutiveSummaryFailures = 0;
++  private summaryHalfOpenInFlight = false;
+   private summaryFailureError?: string;
++  private readonly now: () => Date;
+ 
+   constructor(options: CompactionEngineOptions) {
+     this.options = options;
+     this.tokenBudget = options.tokenBudget ?? new TokenBudgetManager();
+     this.protectedToolNames = protectedToolNameSet(options.protectedToolNames);
++    this.now = options.now ?? (() => new Date());
+   }
+ 
+   async run(input: CompactionInput): Promise<CompactionResult> {
+@@ -256,8 +266,9 @@ export class CompactionEngine {
+       // previous rolling summary. The summary control prompt explicitly asks
+       // the model to de-duplicate that overlap while incorporating new state.
+       const summaryInput = projectMessagesForSummary(planningMessages);
+-      if (this.isSummaryFailureCooldownActive()) {
+-        summaryError = this.summaryFailureError ?? "context summary is in cooldown";
++      const blockedError = this.summaryRetryBlockError(input.trigger);
++      if (blockedError) {
++        summaryError = blockedError;
+       } else {
+         try {
+           const result = await this.summarize(
+@@ -267,15 +278,16 @@ export class CompactionEngine {
+             summaryAnchors,
+             input.maxOutputTokens,
+             checkpoint.previousSummaries,
++            input.effectiveContextTokens,
+           );
+           summaryMessage = wrapSummaryMessage(result.message);
+           summaryUsage = result.usage;
+-          this.summaryFailureCooldownUntil = 0;
+-          this.summaryFailureError = undefined;
++          this.recordSummarySuccess();
+         } catch (error) {
+           summaryError = error instanceof Error ? error.message : String(error);
+-          this.summaryFailureCooldownUntil = Date.now() + COMPACT_SUMMARY_FAILURE_COOLDOWN_MS;
+-          this.summaryFailureError = summaryError;
++          this.recordSummaryFailure(summaryError);
++        } finally {
++          this.summaryHalfOpenInFlight = false;
+         }
+       }
+     }
+@@ -372,32 +384,135 @@ export class CompactionEngine {
+     summaryAnchors: string | undefined,
+     maxOutputTokens: number | undefined,
+     previousSummaries: CanonicalMessage[],
++    effectiveContextTokens: number | undefined,
+   ): Promise<{ message: CanonicalMessage; usage?: CanonicalUsage }> {
+-    const trailingPrompt: CanonicalMessage = {
+-      role: "user",
+-      content: [
+-        {
+-          type: "text",
+-          text: buildMarkdownSummaryUserPrompt(userInstruction, summaryAnchors, previousSummaries),
+-        },
+-      ],
+-      metadata: {
+-        synthetic: true,
+-        purpose: "context-summary-control",
+-      },
+-    };
+-    const request: CanonicalModelRequest = {
+-      provider: this.options.provider,
+-      model: this.options.model_,
+-      messages: [...messages, trailingPrompt],
+-      systemPrompt: this.options.systemPrompt
+-        ? buildMarkdownSummarySystemPrompt(this.options.systemPrompt)
+-        : COMPACT_SUMMARY_SYSTEM_PROMPT_DEFAULT,
+-      maxOutputTokens: maxOutputTokens ?? this.options.maxOutputTokens ?? COMPACT_MAX_OUTPUT_TOKENS,
+-      stream: true,
+-      cacheBreakpoints: [],
+-    };
++    const configuredOutputTokens = positiveTokenCount(maxOutputTokens)
++      ?? positiveTokenCount(this.options.maxOutputTokens)
++      ?? COMPACT_MAX_OUTPUT_TOKENS;
++    const outputTokens = effectiveContextTokens !== undefined
++      ? Math.min(configuredOutputTokens, Math.max(1, Math.floor(effectiveContextTokens / 4)))
++      : configuredOutputTokens;
++    let previousInputTokens: number | undefined;
++    let lastError: Error | undefined;
++
++    for (let attempt = 0; attempt < COMPACT_SUMMARY_MAX_ATTEMPTS; attempt += 1) {
++      const attemptOutputTokens = attempt === 0
++        ? outputTokens
++        : Math.min(outputTokens, COMPACT_SUMMARY_RETRY_MAX_OUTPUT_TOKENS);
++      const inputBudget = effectiveContextTokens === undefined
++        ? undefined
++        : Math.max(1, effectiveContextTokens - attemptOutputTokens);
++      const attemptBudget = inputBudget !== undefined && previousInputTokens !== undefined
++        ? Math.min(inputBudget, Math.max(1, Math.floor(previousInputTokens * COMPACT_SUMMARY_RETRY_INPUT_RATIO)))
++        : inputBudget;
++      const request = this.buildSummaryRequest({
++        messages,
++        userInstruction,
++        summaryAnchors,
++        previousSummaries,
++        maxOutputTokens: attemptOutputTokens,
++        inputBudget: attemptBudget,
++        coreOnly: attempt > 0,
++        contentScale: COMPACT_SUMMARY_RETRY_INPUT_RATIO ** attempt,
++      });
++      const requestInputTokens = this.estimateSummaryRequestInput(request);
++      if (attemptBudget !== undefined && requestInputTokens > attemptBudget) {
++        throw new Error(`Summary input could not fit its token budget (${requestInputTokens} > ${attemptBudget})`);
++      }
++      if (previousInputTokens !== undefined && requestInputTokens >= previousInputTokens) {
++        throw new Error("Summary retry input could not be reduced further");
++      }
++      previousInputTokens = requestInputTokens;
++
++      try {
++        return await this.requestSummary(request, signal);
++      } catch (error) {
++        lastError = error instanceof Error ? error : new Error(String(error));
++        if (attempt + 1 >= COMPACT_SUMMARY_MAX_ATTEMPTS || !isSummaryInputRetryableError(lastError)) {
++          throw lastError;
++        }
++      }
++    }
++    throw lastError ?? new Error("Summary model failed without an error");
++  }
++
++  private buildSummaryRequest(options: {
++    messages: CanonicalMessage[];
++    userInstruction?: string;
++    summaryAnchors?: string;
++    previousSummaries: CanonicalMessage[];
++    maxOutputTokens: number;
++    inputBudget?: number;
++    coreOnly: boolean;
++    contentScale: number;
++  }): CanonicalModelRequest {
++    let contentScale = options.contentScale;
++    let previousSummaries = options.previousSummaries;
++    let summaryAnchors = options.summaryAnchors;
++    let userInstruction = options.userInstruction;
++
++    for (let attempt = 0; attempt < 10; attempt += 1) {
++      const systemPrompt = buildMarkdownSummarySystemPrompt(
++        this.options.systemPrompt ?? COMPACT_SYSTEM_PROMPT_DEFAULT,
++        options.coreOnly || attempt > 0,
++      );
++      const trailingPrompt = createSummaryTrailingPrompt(
++        userInstruction,
++        summaryAnchors,
++        previousSummaries,
++        contentScale,
++      );
++      const fixedTokens = this.tokenBudget.estimateTextTokens(systemPrompt)
++        + this.tokenBudget.estimateMessagesTokens([trailingPrompt]);
++      const messageBudget = options.inputBudget === undefined
++        ? undefined
++        : options.inputBudget - fixedTokens;
++      if (messageBudget !== undefined && messageBudget < 1) {
++        if (previousSummaries.length > 0 || summaryAnchors || userInstruction) {
++          previousSummaries = [];
++          summaryAnchors = undefined;
++          userInstruction = undefined;
++          contentScale = Math.max(0.05, contentScale * 0.5);
++          continue;
++        }
++        throw new Error("Summary input budget is too small for the summary control prompt");
++      }
++      const messages = messageBudget === undefined
++        ? options.messages
++        : fitSummaryMessagesToTokenBudget(
++            options.messages,
++            messageBudget,
++            (candidate) => this.tokenBudget.estimateMessagesTokens(candidate),
++          );
++      const request: CanonicalModelRequest = {
++        provider: this.options.provider,
++        model: this.options.model_,
++        messages: [...messages, trailingPrompt],
++        systemPrompt,
++        maxOutputTokens: options.maxOutputTokens,
++        stream: true,
++        cacheBreakpoints: [],
++      };
++      if (options.inputBudget === undefined || this.estimateSummaryRequestInput(request) <= options.inputBudget) {
++        return request;
++      }
++      previousSummaries = [];
++      summaryAnchors = undefined;
++      userInstruction = undefined;
++      contentScale = Math.max(0.05, contentScale * 0.5);
++    }
++    throw new Error("Summary input could not be bounded within its token budget");
++  }
++
++  private estimateSummaryRequestInput(request: CanonicalModelRequest): number {
++    return this.tokenBudget.estimateMessagesTokens(request.messages)
++      + this.tokenBudget.estimateTextTokens(request.systemPrompt ?? "");
++  }
+ 
++  private async requestSummary(
++    request: CanonicalModelRequest,
++    signal: AbortSignal | undefined,
++  ): Promise<{ message: CanonicalMessage; usage?: CanonicalUsage }> {
+     let text = "";
+     let usage: CanonicalUsage | undefined;
+     let finishReason: CanonicalFinishReason | undefined;
+@@ -419,12 +534,12 @@ export class CompactionEngine {
+       }
+     }
+ 
+-    if (text.trim().length === 0) {
+-      throw new Error("Summary model returned empty content");
+-    }
+     if (finishReason === "length") {
+       throw new Error("Summary model output was truncated at the token limit");
+     }
++    if (text.trim().length === 0) {
++      throw new Error("Summary model returned empty content");
++    }
+     if (finishReason === "content_filter") {
+       throw new Error("Summary model output was stopped by content filtering");
+     }
+@@ -438,8 +553,46 @@ export class CompactionEngine {
+     };
+   }
+ 
+-  private isSummaryFailureCooldownActive(): boolean {
+-    return this.summaryFailureCooldownUntil > Date.now();
++  private summaryRetryBlockError(trigger: CompactionTrigger): string | undefined {
++    if (trigger === "manual") {
++      this.recordSummarySuccess();
++      return undefined;
++    }
++    if (this.summaryHalfOpenInFlight) {
++      return "context summary half-open probe is already running";
++    }
++    const now = this.now().getTime();
++    if (this.summaryCircuitOpenUntil > now) {
++      return this.summaryFailureError
++        ? `context summary circuit breaker is open: ${this.summaryFailureError}`
++        : "context summary circuit breaker is open";
++    }
++    if (this.summaryCircuitOpenUntil > 0) {
++      this.summaryCircuitOpenUntil = 0;
++      this.summaryHalfOpenInFlight = true;
++      return undefined;
++    }
++    if (this.summaryFailureCooldownUntil > now) {
++      return this.summaryFailureError ?? "context summary is in cooldown";
++    }
++    return undefined;
++  }
++
++  private recordSummarySuccess(): void {
++    this.summaryFailureCooldownUntil = 0;
++    this.summaryCircuitOpenUntil = 0;
++    this.consecutiveSummaryFailures = 0;
++    this.summaryFailureError = undefined;
++  }
++
++  private recordSummaryFailure(error: string): void {
++    const now = this.now().getTime();
++    this.consecutiveSummaryFailures += 1;
++    this.summaryFailureError = error;
++    this.summaryFailureCooldownUntil = now + COMPACT_SUMMARY_FAILURE_COOLDOWN_MS;
++    if (this.consecutiveSummaryFailures >= COMPACT_SUMMARY_CONSECUTIVE_FAILURE_LIMIT) {
++      this.summaryCircuitOpenUntil = now + COMPACT_SUMMARY_CIRCUIT_OPEN_MS;
++    }
+   }
+ 
+   private createBoundaryMarker(opts: {
+@@ -802,11 +955,15 @@ function clamp(value: number, min: number, max: number): number {
+   return Math.max(min, Math.min(max, value));
+ }
+ 
+-function buildMarkdownSummarySystemPrompt(basePrompt: string): string {
+-  const headings = SUMMARY_MARKDOWN_HEADINGS.map((heading) => `## ${heading}`).join("\n");
++function buildMarkdownSummarySystemPrompt(basePrompt: string, coreOnly = false): string {
++  const headings = (coreOnly ? CORE_SUMMARY_MARKDOWN_HEADINGS : SUMMARY_MARKDOWN_HEADINGS)
++    .map((heading) => `## ${heading}`)
++    .join("\n");
+   return [
+     basePrompt.trim(),
+-    "Summarize the conversation so far as a concise Markdown checkpoint handoff for the next coding agent.",
++    coreOnly
++      ? "Summarize the conversation as a short Markdown checkpoint. Keep only actionable state needed to continue."
++      : "Summarize the conversation so far as a concise Markdown checkpoint handoff for the next coding agent.",
+     "This summary will replace earlier transcript messages. Preserve actionable state, visible results, and task-relevant conclusions from prior thinking blocks, not a chronological transcript or private monologue. Do not reproduce chain-of-thought verbatim, but do not drop factual reasoning that only appeared in thinking.",
+     "The input includes the recent live tail as well as older work. Summarize the full live segment so a later bounded snip may remove older live turns without losing their state.",
+     "The runtime will wrap your answer in a reference-only prefix and end marker, so do not add those markers yourself.",
+@@ -820,10 +977,30 @@ function buildMarkdownSummarySystemPrompt(basePrompt: string): string {
+   ].join("\n\n");
+ }
+ 
++function createSummaryTrailingPrompt(
++  userInstruction: string | undefined,
++  summaryAnchors: string | undefined,
++  previousSummaries: CanonicalMessage[],
++  contentScale: number,
++): CanonicalMessage {
++  return {
++    role: "user",
++    content: [{
++      type: "text",
++      text: buildMarkdownSummaryUserPrompt(userInstruction, summaryAnchors, previousSummaries, contentScale),
++    }],
++    metadata: {
++      synthetic: true,
++      purpose: "context-summary-control",
++    },
++  };
++}
++
+ function buildMarkdownSummaryUserPrompt(
+   userInstruction: string | undefined,
+   summaryAnchors: string | undefined,
+   previousSummaries: CanonicalMessage[],
++  contentScale = 1,
+ ): string {
+   const parts = [
+     '<internal-compaction-control purpose="context-summary" synthetic="true">',
+@@ -837,7 +1014,10 @@ function buildMarkdownSummaryUserPrompt(
+   if (previousSummary) {
+     parts.push(
+       "<previous-rolling-summary>",
+-      previousSummary,
++      truncateSummaryEvidenceText(
++        previousSummary,
++        Math.max(256, Math.floor(COMPACT_SUMMARY_PREVIOUS_MAX_CHARS * contentScale)),
++      ),
+       "</previous-rolling-summary>",
+       "Update the previous rolling summary with the live conversation above. Preserve still-relevant facts, correct obsolete state, and de-duplicate any live tail already represented in the previous summary. Return one complete replacement summary, not an addendum.",
+     );
+@@ -845,18 +1025,113 @@ function buildMarkdownSummaryUserPrompt(
+   if (userInstruction?.trim()) {
+     parts.push(
+       "<additional-summary-instructions>",
+-      userInstruction.trim(),
++      truncateSummaryEvidenceText(
++        userInstruction.trim(),
++        Math.max(128, Math.floor(COMPACT_SUMMARY_INSTRUCTION_MAX_CHARS * contentScale)),
++      ),
+       "</additional-summary-instructions>",
+       "The additional instructions above affect summary emphasis or format only; they do not change the underlying task state.",
+     );
+   }
+   if (summaryAnchors?.trim()) {
+-    parts.push(summaryAnchors.trim());
++    parts.push(truncateSummaryEvidenceText(
++      summaryAnchors.trim(),
++      Math.max(256, Math.floor(COMPACT_SUMMARY_ANCHOR_MAX_TOTAL_CHARS * contentScale)),
++    ));
+   }
+   parts.push("</internal-compaction-control>");
+   return parts.join("\n\n");
+ }
+ 
++function fitSummaryMessagesToTokenBudget(
++  messages: CanonicalMessage[],
++  tokenBudget: number,
++  estimate: (messages: CanonicalMessage[]) => number,
++): CanonicalMessage[] {
++  let candidate = stripSummaryOrphanedToolPairs(messages);
++  if (estimate(candidate) <= tokenBudget) return candidate;
++
++  while (candidate.length > 1 && estimate(candidate) > tokenBudget) {
++    const next = stripSummaryOrphanedToolPairs(candidate.slice(1));
++    if (next.length === 0 || next.length === candidate.length) break;
++    candidate = next;
++  }
++
++  for (let attempt = 0; attempt < 12 && estimate(candidate) > tokenBudget; attempt += 1) {
++    const scale = Math.max(0.05, COMPACT_SUMMARY_RETRY_INPUT_RATIO ** (attempt + 1));
++    const next = condenseSummaryMessages(candidate, scale);
++    if (estimate(next) >= estimate(candidate)) break;
++    candidate = next;
++  }
++  if (estimate(candidate) > tokenBudget) {
++    throw new Error("Summary input is too large for the remaining token budget");
++  }
++  return candidate;
++}
++
++function stripSummaryOrphanedToolPairs(messages: CanonicalMessage[]): CanonicalMessage[] {
++  const withoutResults = stripUnpairedToolResults(messages, collectToolCallIds(messages));
++  return stripUnpairedToolCalls(withoutResults, collectToolResultIds(withoutResults));
++}
++
++function condenseSummaryMessages(messages: CanonicalMessage[], scale: number): CanonicalMessage[] {
++  return messages.map((message) => ({
++    ...message,
++    content: message.content.map((block): CanonicalContentBlock => {
++      if (block.type === "text") {
++        return { ...block, text: shrinkSummaryText(block.text, scale) };
++      }
++      if (block.type === "thinking") {
++        return {
++          ...block,
++          text: shrinkSummaryText(block.text, scale),
++          ...(block.reasoningContent !== undefined
++            ? { reasoningContent: shrinkSummaryText(block.reasoningContent, scale) }
++            : {}),
++        };
++      }
++      if (block.type === "tool_call") {
++        return pruneToolCallForSummary(
++          block,
++          Math.max(64, Math.floor(COMPACT_SUMMARY_INPUT_TOOL_CALL_ARG_MAX_CHARS * scale)),
++        );
++      }
++      if (block.type === "tool_result") {
++        return {
++          ...block,
++          content: [{
++            type: "text",
++            text: shrinkSummaryText(flattenToolResultContentText(block.content), scale),
++          }],
++        };
++      }
++      if (block.type === "tool_result_reference") {
++        return { ...block, preview: shrinkSummaryText(block.preview, scale) };
++      }
++      return block;
++    }),
++  }));
++}
++
++function shrinkSummaryText(text: string, scale: number): string {
++  if (text.length <= 64) return text;
++  return truncateSummaryEvidenceText(text, Math.max(64, Math.floor(text.length * scale)));
++}
++
++function truncateSummaryEvidenceText(text: string, maxChars: number): string {
++  if (text.length <= maxChars) return text;
++  const marker = "\n...[summary input truncated]...\n";
++  const available = Math.max(1, maxChars - marker.length);
++  const headChars = Math.ceil(available * 0.6);
++  const tailChars = Math.max(0, available - headChars);
++  return `${text.slice(0, headChars)}${marker}${tailChars > 0 ? text.slice(-tailChars) : ""}`;
++}
++
++function isSummaryInputRetryableError(error: Error): boolean {
++  return /truncated at the token limit|prompt[_ ]too[_ ]long|context[_ ]length|context overflow|maximum context|too many tokens|input.{0,40}too long/i
++    .test(error.message);
++}
++
+ function projectMessagesForSummary(messages: CanonicalMessage[]): CanonicalMessage[] {
+   const stripped = stripMultimediaFromMessages(messages);
+   const toolNamesByCallId = collectToolNamesByCallId(stripped);
+@@ -928,12 +1203,15 @@ function projectOversizedRetainedToolResults(
+   return changed ? projected : messages;
+ }
+ 
+-function pruneToolCallForSummary(block: CanonicalToolCallBlock): CanonicalToolCallBlock {
++function pruneToolCallForSummary(
++  block: CanonicalToolCallBlock,
++  maxChars = COMPACT_SUMMARY_INPUT_TOOL_CALL_ARG_MAX_CHARS,
++): CanonicalToolCallBlock {
+   return {
+     type: "tool_call",
+     id: block.id,
+     name: block.name,
+-    input: pruneSummaryInputValue(block.input),
++    input: pruneSummaryInputValue(block.input, maxChars),
+   };
+ }
+ 
+@@ -1001,16 +1279,21 @@ function pruneToolResultReferenceForSummary(
+   };
+ }
+ 
+-function pruneSummaryInputValue(value: unknown): unknown {
+-  return pruneSummaryInputValueInner(value, 0, new WeakSet<object>());
++function pruneSummaryInputValue(value: unknown, maxChars: number): unknown {
++  return pruneSummaryInputValueInner(value, 0, new WeakSet<object>(), maxChars);
+ }
+ 
+-function pruneSummaryInputValueInner(value: unknown, depth: number, seen: WeakSet<object>): unknown {
++function pruneSummaryInputValueInner(
++  value: unknown,
++  depth: number,
++  seen: WeakSet<object>,
++  maxChars: number,
++): unknown {
+   if (value === null || value === undefined) {
+     return value;
+   }
+   if (typeof value === "string") {
+-    return truncateForSummaryInput(value, COMPACT_SUMMARY_INPUT_TOOL_CALL_ARG_MAX_CHARS);
++    return truncateForSummaryInput(value, maxChars);
+   }
+   if (typeof value === "number" || typeof value === "boolean") {
+     return value;
+@@ -1029,7 +1312,7 @@ function pruneSummaryInputValueInner(value: unknown, depth: number, seen: WeakSe
+       return "[Circular]";
+     }
+     seen.add(value);
+-    return value.slice(0, 20).map((item) => pruneSummaryInputValueInner(item, depth + 1, seen));
++    return value.slice(0, 20).map((item) => pruneSummaryInputValueInner(item, depth + 1, seen, maxChars));
+   }
+   if (isPlainObject(value)) {
+     if (seen.has(value)) {
+@@ -1042,7 +1325,7 @@ function pruneSummaryInputValueInner(value: unknown, depth: number, seen: WeakSe
+       if (count >= 20) {
+         break;
+       }
+-      out[key] = pruneSummaryInputValueInner(child, depth + 1, seen);
++      out[key] = pruneSummaryInputValueInner(child, depth + 1, seen, maxChars);
+       count += 1;
+     }
+     return out;
+diff --git a/tests/context/autoCompaction.spec.ts b/tests/context/autoCompaction.spec.ts
+index 28cfe9b9..adf15c0b 100644
+--- a/tests/context/autoCompaction.spec.ts
++++ b/tests/context/autoCompaction.spec.ts
+@@ -42,10 +42,13 @@ test("auto-compaction summarizes earlier work instead of deleting it", async ()
+     tokenBudget,
+     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
+     compactionEngine: engine,
+-    maxContextTokens: 1,
++    maxContextTokens: 20_000,
+   });
+ 
+-  const result = await runtime.tryAutoCompact({ messages });
++  const result = await runtime.tryAutoCompact({
++    messages,
++    budgetEvaluator: () => Promise.resolve(tokenBudget.snapshotFromTokens(19_000, 20_000)),
++  });
+ 
+   assert.equal(result.type, "compacted");
+   assert.equal(result.tier, "emergency");
+@@ -87,7 +90,7 @@ test("auto-compaction keeps the original transcript when summary generation fail
+     tokenBudget,
+     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
+     compactionEngine: engine,
+-    maxContextTokens: 100,
++    maxContextTokens: 20_000,
+   });
+ 
+   let evaluations = 0;
+@@ -96,7 +99,7 @@ test("auto-compaction keeps the original transcript when summary generation fail
+     budgetEvaluator: (candidate) => {
+       evaluations += 1;
+       assert.deepEqual(candidate, messages);
+-      return Promise.resolve(tokenBudget.snapshotFromTokens(evaluations === 1 ? 95 : 85, 100));
++      return Promise.resolve(tokenBudget.snapshotFromTokens(evaluations === 1 ? 19_000 : 17_000, 20_000));
+     },
+   });
+ 
+@@ -141,10 +144,14 @@ test("reactive summary failure uses emergency truncation without fabricating a c
+     tokenBudget,
+     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
+     compactionEngine: engine,
+-    maxContextTokens: 1,
++    maxContextTokens: 20_000,
+   });
+ 
+-  const result = await runtime.tryAutoCompact({ messages, allowFallbackOnFailure: true });
++  const result = await runtime.tryAutoCompact({
++    messages,
++    allowFallbackOnFailure: true,
++    budgetEvaluator: () => Promise.resolve(tokenBudget.snapshotFromTokens(19_000, 20_000)),
++  });
+ 
+   assert.equal(result.type, "compacted");
+   assert.equal(result.tier, "emergency");
+@@ -200,13 +207,13 @@ test("protected early tool turns do not bypass emergency compaction", async () =
+     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
+     compactionEngine: engine,
+     microCompaction: new MicroCompactionEngine(),
+-    maxContextTokens: 100,
++    maxContextTokens: 20_000,
+   });
+ 
+   const result = await runtime.tryAutoCompact({
+     messages,
+     budgetEvaluator: (candidate) => Promise.resolve(
+-      tokenBudget.snapshotFromTokens(textFrom(candidate).includes("[CONTEXT COMPACTION - REFERENCE ONLY]") ? 70 : 120, 100),
++      tokenBudget.snapshotFromTokens(textFrom(candidate).includes("[CONTEXT COMPACTION - REFERENCE ONLY]") ? 14_000 : 24_000, 20_000),
+     ),
+   });
+ 
+@@ -215,7 +222,7 @@ test("protected early tool turns do not bypass emergency compaction", async () =
+   assert.equal(textFrom(result.messages).includes("[CONTEXT COMPACTION - REFERENCE ONLY]"), true);
+ });
+ 
+-test("80% pre-summary prune can stay below 90% without calling the summary model", async () => {
++test("pre-summary prune below 80% can finish without calling the summary model", async () => {
+   const tokenBudget = new TokenBudgetManager();
+   const summaryRequests: CanonicalModelRequest[] = [];
+   const engine = new CompactionEngine({
+@@ -233,12 +240,12 @@ test("80% pre-summary prune can stay below 90% without calling the summary model
+     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
+     compactionEngine: engine,
+     microCompaction: new MicroCompactionEngine(),
+-    maxContextTokens: 100,
++    maxContextTokens: 20_000,
+   });
+   const result = await runtime.tryAutoCompact({
+     messages: largeToolResultFixture(),
+     budgetEvaluator: (candidate) => Promise.resolve(
+-      tokenBudget.snapshotFromTokens(hasMicroMarker(candidate) ? 84 : 86, 100),
++      tokenBudget.snapshotFromTokens(hasMicroMarker(candidate) ? 15_200 : 17_200, 20_000),
+     ),
+   });
+ 
+@@ -265,14 +272,14 @@ test("summary runs before post-summary snip and keeps the compact checkpoint", a
+     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
+     compactionEngine: engine,
+     snipEngine: new SnipEngine({ keepHeadTurns: 0, keepTailTurns: 1 }),
+-    maxContextTokens: 100,
++    maxContextTokens: 20_000,
+   });
+   const result = await runtime.tryAutoCompact({
+     messages: textMessages(...Array.from({ length: 24 }, (_, index) => `turn-${index}`)),
+     budgetEvaluator: (candidate) => Promise.resolve(
+       tokenBudget.snapshotFromTokens(
+-        hasSnipBoundary(candidate) ? 55 : hasCompactSummary(candidate) ? 95 : 100,
+-        100,
++        hasSnipBoundary(candidate) ? 11_000 : hasCompactSummary(candidate) ? 19_000 : 20_000,
++        20_000,
+       ),
+     ),
+   });
+@@ -282,7 +289,7 @@ test("summary runs before post-summary snip and keeps the compact checkpoint", a
+   assert.equal(summaryRequests.length, 1);
+   assert.equal(hasSnipBoundary(result.messages), true);
+   assert.match(textFrom(result.messages), /Keep the checkpoint/);
+-  assert.equal(result.result?.targetPostTokens, 60);
++  assert.equal(result.result?.targetPostTokens, 12_000);
+ });
+ 
+ test("targeted snip can prune tool cycles inside one user task", () => {
+@@ -492,13 +499,13 @@ test("zero-message summaries are skipped when compaction makes no effective chan
+     tokenBudget,
+     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
+     compactionEngine: engine,
+-    maxContextTokens: 100,
++    maxContextTokens: 20_000,
+   });
+   const result = await runtime.tryAutoCompact({
+     messages: [{ role: "user", content: [{ type: "text", text: "Only protected current request" }] }],
+     budgetEvaluator: (candidate) => Promise.resolve(tokenBudget.snapshotFromTokens(
+-      textFrom(candidate).includes("<compact-boundary") ? 50 : 95,
+-      100,
++      textFrom(candidate).includes("<compact-boundary") ? 10_000 : 19_000,
++      20_000,
+     )),
+   });
+ 
+@@ -540,7 +547,7 @@ test("rolling-summary replacement with no live history succeeds without emergenc
+     tokenBudget,
+     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
+     compactionEngine: engine,
+-    maxContextTokens: 100,
++    maxContextTokens: 20_000,
+   });
+ 
+   const result = await runtime.tryAutoCompact({
+@@ -549,8 +556,8 @@ test("rolling-summary replacement with no live history succeeds without emergenc
+       content: [{ type: "text", text: "Required current request" }],
+     }],
+     budgetEvaluator: (candidate) => Promise.resolve(tokenBudget.snapshotFromTokens(
+-      textFrom(candidate).includes("Replacement checkpoint") ? 50 : 95,
+-      100,
++      textFrom(candidate).includes("Replacement checkpoint") ? 10_000 : 19_000,
++      20_000,
+     )),
+   });
+ 
+@@ -576,12 +583,12 @@ test("zero-message compaction reports overflow instead of skipped above the hard
+         },
+       },
+     }),
+-    maxContextTokens: 100,
++    maxContextTokens: 20_000,
+   });
+ 
+   const result = await runtime.tryAutoCompact({
+     messages: [{ role: "user", content: [{ type: "text", text: "Only protected current request" }] }],
+-    budgetEvaluator: () => Promise.resolve(tokenBudget.snapshotFromTokens(110, 100)),
++    budgetEvaluator: () => Promise.resolve(tokenBudget.snapshotFromTokens(22_000, 20_000)),
+   });
+ 
+   assert.equal(result.type, "compacted");
+@@ -633,12 +640,12 @@ test("emergency compaction reports an explicit overflow instead of permitting an
+     tokenBudget,
+     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
+     compactionEngine: engine,
+-    maxContextTokens: 100,
++    maxContextTokens: 20_000,
+   });
+ 
+   const result = await runtime.tryAutoCompact({
+     messages: textMessages(...Array.from({ length: 20 }, (_, index) => `turn-${index}`)),
+-    budgetEvaluator: () => Promise.resolve(tokenBudget.snapshotFromTokens(120, 100)),
++    budgetEvaluator: () => Promise.resolve(tokenBudget.snapshotFromTokens(24_000, 20_000)),
+   });
+ 
+   assert.equal(result.type, "compacted");
+@@ -664,12 +671,12 @@ test("emergency compaction keeps a sendable prompt below the hard budget", async
+     tokenBudget,
+     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
+     compactionEngine: engine,
+-    maxContextTokens: 100,
++    maxContextTokens: 20_000,
+   });
+ 
+   const result = await runtime.tryAutoCompact({
+     messages: textMessages(...Array.from({ length: 20 }, (_, index) => `turn-${index}`)),
+-    budgetEvaluator: () => Promise.resolve(tokenBudget.snapshotFromTokens(95, 100)),
++    budgetEvaluator: () => Promise.resolve(tokenBudget.snapshotFromTokens(19_000, 20_000)),
+   });
+ 
+   assert.equal(result.type, "compacted");
+@@ -694,14 +701,14 @@ test("emergency summary remains persistable after a later head truncation", asyn
+     tokenBudget,
+     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
+     compactionEngine: engine,
+-    maxContextTokens: 100,
++    maxContextTokens: 20_000,
+   });
+ 
+   const result = await runtime.tryAutoCompact({
+     messages: textMessages(...Array.from({ length: 20 }, (_, index) => `turn-${index}`)),
+     // Keep the simulated routed request in emergency territory after the
+     // summary so the emergency path continues through head truncation.
+-    budgetEvaluator: () => Promise.resolve(tokenBudget.snapshotFromTokens(95, 100)),
++    budgetEvaluator: () => Promise.resolve(tokenBudget.snapshotFromTokens(19_000, 20_000)),
+   });
+ 
+   assert.equal(result.type, "compacted");
+diff --git a/tests/context/compaction-engine.spec.ts b/tests/context/compaction-engine.spec.ts
+index 51036ac7..00d32d0d 100644
+--- a/tests/context/compaction-engine.spec.ts
++++ b/tests/context/compaction-engine.spec.ts
+@@ -219,7 +219,7 @@ test("auto full compaction retries without protected turns when protected output
+     tokenBudget,
+     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
+     compactionEngine: engine,
+-    maxContextTokens: 100,
++    maxContextTokens: 20_000,
+   });
+ 
+   const result = await runtime.tryAutoCompact({
+@@ -273,13 +273,13 @@ test("protected turns above the 60% target stay intact without emergency below 9
+     tokenBudget,
+     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
+     compactionEngine: engine,
+-    maxContextTokens: 100,
++    maxContextTokens: 20_000,
+   });
+ 
+   const result = await runtime.tryAutoCompact({
+     messages: compactFixture(),
+     budgetEvaluator: (candidate) => Promise.resolve(
+-      tokenBudget.snapshotFromTokens(hasCompactSummary(candidate) ? 85 : 95, 100),
++      tokenBudget.snapshotFromTokens(hasCompactSummary(candidate) ? 17_000 : 19_000, 20_000),
+     ),
+   });
+ 
+@@ -343,13 +343,13 @@ test("auto full compaction keeps the best compacted result even when it still bl
+     tokenBudget,
+     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
+     compactionEngine: engine,
+-    maxContextTokens: 100,
++    maxContextTokens: 20_000,
+   });
+ 
+   const result = await runtime.tryAutoCompact({
+     messages: compactFixture(),
+     budgetEvaluator: (candidate) => Promise.resolve(
+-      tokenBudget.snapshotFromTokens(hasToolCall(candidate, "Task") ? 130 : 120, 100),
++      tokenBudget.snapshotFromTokens(hasToolCall(candidate, "Task") ? 26_000 : 24_000, 20_000),
+     ),
+   });
+ 
+@@ -442,11 +442,46 @@ test("full compaction keeps the initiating user request with a protected tool cy
+   );
+ });
+ 
+-test("summary output truncated by the provider is treated as a failed compaction", async () => {
++test("summary request fits the total input budget before the first model call", async () => {
++  const tokenBudget = new TokenBudgetManager();
++  const requests: CanonicalModelRequest[] = [];
+   const engine = new CompactionEngine({
++    tokenBudget,
+     model: {
+-      async *stream(): AsyncIterable<CanonicalModelEvent> {
+-        yield { type: "message_start", role: "assistant" };
++      async *stream(request): AsyncIterable<CanonicalModelEvent> {
++        requests.push(request);
++        yield { type: "text_delta", text: "## Objective\nContinue.\n\n## Current State\nBounded.\n\n## Remaining\nContinue.\n\n## Files And Artifacts\nNone." };
++        yield { type: "message_end", finishReason: "stop" };
++      },
++    },
++    provider: "local",
++    model_: "local-chat",
++    maxOutputTokens: 500,
++  });
++
++  const result = await engine.run({
++    trigger: "auto",
++    messages: rollingWorkMessages(`Bounded ${"details ".repeat(200)}`),
++    effectiveContextTokens: 4_000,
++    keepTailRatio: 0.01,
++    protectedToolNames: null,
++  });
++
++  assert.equal(result.error, undefined);
++  assert.equal(requests.length, 1);
++  const inputTokens = tokenBudget.estimateMessagesTokens(requests[0]!.messages)
++    + tokenBudget.estimateTextTokens(requests[0]!.systemPrompt ?? "");
++  assert.ok(inputTokens <= 3_500, `summary input was ${inputTokens} tokens`);
++});
++
++test("summary output truncation retries with strictly smaller input and a shorter prompt", async () => {
++  const tokenBudget = new TokenBudgetManager();
++  const requests: CanonicalModelRequest[] = [];
++  const engine = new CompactionEngine({
++    tokenBudget,
++    model: {
++      async *stream(request): AsyncIterable<CanonicalModelEvent> {
++        requests.push(request);
+         yield { type: "text_delta", text: "## Objective\nIncomplete" };
+         yield { type: "message_end", finishReason: "length" };
+       },
+@@ -457,15 +492,108 @@ test("summary output truncated by the provider is treated as a failed compaction
+ 
+   const result = await engine.run({
+     trigger: "auto",
+-    messages: compactFixture(),
++    messages: rollingWorkMessages("Retry"),
++    effectiveContextTokens: 20_000,
+     keepTailRatio: 0.01,
++    protectedToolNames: null,
+   });
+ 
++  assert.equal(requests.length, 3);
++  const inputSizes = requests.map((request) => tokenBudget.estimateMessagesTokens(request.messages)
++    + tokenBudget.estimateTextTokens(request.systemPrompt ?? ""));
++  assert.ok(inputSizes[1]! < inputSizes[0]!, `${inputSizes.join(" -> ")}`);
++  assert.ok(inputSizes[2]! < inputSizes[1]!, `${inputSizes.join(" -> ")}`);
++  assert.ok(inputSizes.every((tokens, index) => tokens <= 16_000 - index));
++  assert.ok(requests[0]!.maxOutputTokens! > requests[1]!.maxOutputTokens!);
++  assert.equal(requests[1]!.maxOutputTokens, 1_536);
++  assert.equal(requests[2]!.maxOutputTokens, 1_536);
++  assert.match(requests[0]!.systemPrompt ?? "", /## Completed/);
++  assert.doesNotMatch(requests[1]!.systemPrompt ?? "", /## Completed/);
++  assert.match(requests[1]!.systemPrompt ?? "", /## Objective/);
+   assert.match(result.error ?? "", /truncated at the token limit/);
+   assert.equal(result.summaryMessage, undefined);
+   assert.equal(result.summaryGenerated, false);
+ });
+ 
++test("three consecutive summary failures open a circuit with one half-open probe", async () => {
++  let now = 1_000_000;
++  let calls = 0;
++  let releaseProbe: (() => void) | undefined;
++  const engine = new CompactionEngine({
++    now: () => new Date(now),
++    model: {
++      async *stream(): AsyncIterable<CanonicalModelEvent> {
++        calls += 1;
++        if (calls <= 3) {
++          throw new Error("summary backend down");
++        }
++        yield { type: "text_delta", text: "## Objective\nRecovered." };
++        yield { type: "message_end", finishReason: "stop" };
++        if (calls === 4) {
++          await new Promise<void>((resolve) => { releaseProbe = resolve; });
++        }
++      },
++    },
++    provider: "local",
++    model_: "local-chat",
++  });
++  const run = (trigger: "auto" | "manual" = "auto") => engine.run({
++    trigger,
++    messages: compactFixture(),
++    keepTailRatio: 0.01,
++  });
++
++  await run();
++  now += 61_000;
++  await run();
++  now += 61_000;
++  await run();
++  const blocked = await run();
++  assert.equal(calls, 3);
++  assert.match(blocked.error ?? "", /circuit breaker is open/);
++
++  now += 300_001;
++  const probe = run();
++  await new Promise((resolve) => setImmediate(resolve));
++  const concurrent = await run();
++  assert.equal(calls, 4);
++  assert.match(concurrent.error ?? "", /half-open probe is already running/);
++  releaseProbe?.();
++  const recovered = await probe;
++  assert.equal(recovered.error, undefined);
++
++  const afterSuccess = await run();
++  assert.equal(afterSuccess.error, undefined);
++  assert.equal(calls, 5);
++});
++
++test("manual compaction is an explicit recovery exit from the failure circuit", async () => {
++  let now = 1_000_000;
++  let calls = 0;
++  const engine = new CompactionEngine({
++    now: () => new Date(now),
++    model: {
++      async *stream(): AsyncIterable<CanonicalModelEvent> {
++        calls += 1;
++        if (calls <= 3) throw new Error("summary backend down");
++        yield { type: "text_delta", text: "## Objective\nManual recovery." };
++        yield { type: "message_end", finishReason: "stop" };
++      },
++    },
++    provider: "local",
++    model_: "local-chat",
++  });
++  for (let attempt = 0; attempt < 3; attempt += 1) {
++    await engine.run({ trigger: "auto", messages: compactFixture(), keepTailRatio: 0.01 });
++    now += 61_000;
++  }
++  assert.equal(calls, 3);
++
++  const recovered = await engine.run({ trigger: "manual", messages: compactFixture(), keepTailRatio: 0.01 });
++  assert.equal(recovered.error, undefined);
++  assert.equal(calls, 4);
++});
++
+ test("protected turns remain in chronological order with later work", async () => {
+   const engine = new CompactionEngine({
+     model: {
+@@ -560,13 +688,13 @@ test("auto full compaction summarizes older tool groups inside one user task", a
+     tokenBudget,
+     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
+     compactionEngine: engine,
+-    maxContextTokens: 100,
++    maxContextTokens: 20_000,
+   });
+ 
+   const result = await runtime.tryAutoCompact({
+     messages: singleUserToolChainFixture(),
+     budgetEvaluator: (candidate) => Promise.resolve(
+-      tokenBudget.snapshotFromTokens(hasCompactSummary(candidate) ? 20 : 500, 100),
++      tokenBudget.snapshotFromTokens(hasCompactSummary(candidate) ? 4_000 : 100_000, 20_000),
+     ),
+   });
+ 
+@@ -639,19 +767,19 @@ test("blocking auto compaction continues to full summary when micro pruning only
+     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
+     compactionEngine: engine,
+     microCompaction: new MicroCompactionEngine({ keepLatest: 1 }),
+-    maxContextTokens: 100,
++    maxContextTokens: 20_000,
+   });
+ 
+   const result = await runtime.tryAutoCompact({
+     messages: singleUserToolChainFixture(),
+     budgetEvaluator: (candidate) => {
+       if (hasCompactSummary(candidate)) {
+-        return Promise.resolve(tokenBudget.snapshotFromTokens(20, 100));
++        return Promise.resolve(tokenBudget.snapshotFromTokens(4_000, 20_000));
+       }
+       if (hasMicroCompactMarker(candidate)) {
+-        return Promise.resolve(tokenBudget.snapshotFromTokens(85, 100));
++        return Promise.resolve(tokenBudget.snapshotFromTokens(17_000, 20_000));
+       }
+-      return Promise.resolve(tokenBudget.snapshotFromTokens(500, 100));
++      return Promise.resolve(tokenBudget.snapshotFromTokens(100_000, 20_000));
+     },
+   });
+ 
+@@ -678,7 +806,7 @@ test("summary failures preserve the original transcript and cool down retries",
+     tokenBudget,
+     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
+     compactionEngine: engine,
+-    maxContextTokens: 100,
++    maxContextTokens: 20_000,
+   });
+ 
+   const original = compactFixture();
+@@ -687,7 +815,7 @@ test("summary failures preserve the original transcript and cool down retries",
+     messages: original,
+     budgetEvaluator: (candidate) => {
+       evaluated.push(candidate);
+-      return Promise.resolve(tokenBudget.snapshotFromTokens(evaluated.length === 1 ? 95 : 85, 100));
++      return Promise.resolve(tokenBudget.snapshotFromTokens(evaluated.length === 1 ? 19_000 : 17_000, 20_000));
+     },
+   });
+ 
+@@ -700,7 +828,7 @@ test("summary failures preserve the original transcript and cool down retries",
+     messages: original,
+     budgetEvaluator: (candidate) => {
+       secondEvaluated.push(candidate);
+-      return Promise.resolve(tokenBudget.snapshotFromTokens(secondEvaluated.length === 1 ? 95 : 85, 100));
++      return Promise.resolve(tokenBudget.snapshotFromTokens(secondEvaluated.length === 1 ? 19_000 : 17_000, 20_000));
+     },
+   });
+ 
+@@ -1175,5 +1303,5 @@ function fakeSnapshot(
+   messages: CanonicalMessage[],
+   tokenBudget: TokenBudgetManager,
+ ): TokenBudgetSnapshot {
+-  return tokenBudget.snapshotFromTokens(hasToolCall(messages, "Task") ? 200 : 20, 100);
++  return tokenBudget.snapshotFromTokens(hasToolCall(messages, "Task") ? 40_000 : 4_000, 20_000);
+ }
