@@ -119,44 +119,48 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     const connect = () => {
       if (unmountedRef.current || connectIdRef.current !== id) return;
       setReconnectInfo((prev) => ({ ...prev, status: 'reconnecting' }));
+      const clearHeartbeat = () => {
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current);
+          pingIntervalRef.current = null;
+        }
+        if (ackTimeoutRef.current) {
+          clearTimeout(ackTimeoutRef.current);
+          ackTimeoutRef.current = null;
+        }
+        pendingPingIdRef.current = null;
+      };
+
+      // A connection settles exactly once: either the browser reports `close`,
+      // or we detect a failed/half-open link ourselves. Every exit schedules
+      // the same single backoff reconnect, including constructor failures.
+      let settled = false;
+      const settle = () => {
+        if (settled || connectIdRef.current !== id) return;
+        settled = true;
+        clearHeartbeat();
+        setIsConnected(false);
+        wsRef.current = null;
+        const attempt = ++reconnectAttemptRef.current;
+        const delay = Math.min(
+          INITIAL_RECONNECT_MS * Math.pow(BACKOFF_FACTOR, attempt - 1),
+          MAX_RECONNECT_MS,
+        );
+        setReconnectInfo({ attempt, nextRetryMs: delay, status: 'disconnected' });
+        reconnectTimeoutRef.current = setTimeout(() => {
+          if (unmountedRef.current || connectIdRef.current !== id) return;
+          connect();
+        }, delay);
+      };
+
       try {
         const wsUrl = buildWebSocketUrl(token);
         if (!wsUrl) return console.warn('No authentication token found for WebSocket connection');
 
         const websocket = new WebSocket(wsUrl);
-
-        const clearHeartbeat = () => {
-          if (pingIntervalRef.current) {
-            clearInterval(pingIntervalRef.current);
-            pingIntervalRef.current = null;
-          }
-          if (ackTimeoutRef.current) {
-            clearTimeout(ackTimeoutRef.current);
-            ackTimeoutRef.current = null;
-          }
-          pendingPingIdRef.current = null;
-        };
-
-        // A connection settles exactly once: either the browser reports `close`,
-        // or we detect a half-open link ourselves. Both must schedule the same
-        // single backoff reconnect.
-        let settled = false;
-        const settle = () => {
-          if (settled || connectIdRef.current !== id) return;
-          settled = true;
-          clearHeartbeat();
-          setIsConnected(false);
-          wsRef.current = null;
-          const attempt = ++reconnectAttemptRef.current;
-          const delay = Math.min(
-            INITIAL_RECONNECT_MS * Math.pow(BACKOFF_FACTOR, attempt - 1),
-            MAX_RECONNECT_MS,
-          );
-          setReconnectInfo({ attempt, nextRetryMs: delay, status: 'disconnected' });
-          reconnectTimeoutRef.current = setTimeout(() => {
-            if (unmountedRef.current || connectIdRef.current !== id) return;
-            connect();
-          }, delay);
+        const closeAndSettle = () => {
+          try { websocket.close(); } catch { /* already closing */ }
+          settle();
         };
 
         websocket.onopen = () => {
@@ -166,9 +170,14 @@ const useWebSocketProviderState = (): WebSocketContextType => {
           setReconnectInfo({ attempt: 0, nextRetryMs: 0, status: 'connected' });
           wsRef.current = websocket;
 
-          while (queuedMessagesRef.current.length > 0 && websocket.readyState === WebSocket.OPEN) {
-            const message = queuedMessagesRef.current.shift();
-            websocket.send(JSON.stringify(withClientRequestContext(message)));
+          try {
+            while (queuedMessagesRef.current.length > 0 && websocket.readyState === WebSocket.OPEN) {
+              const message = queuedMessagesRef.current.shift();
+              websocket.send(JSON.stringify(withClientRequestContext(message)));
+            }
+          } catch {
+            closeAndSettle();
+            return;
           }
 
           clearHeartbeat();
@@ -179,7 +188,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
             try {
               websocket.send(JSON.stringify({ type: 'ping', requestId, timestamp: Date.now() }));
             } catch {
-              pendingPingIdRef.current = null;
+              closeAndSettle();
               return;
             }
             // A socket can still read OPEN while the peer is gone (frozen tab,
@@ -189,8 +198,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
             ackTimeoutRef.current = setTimeout(() => {
               ackTimeoutRef.current = null;
               if (settled || connectIdRef.current !== id) return;
-              try { websocket.close(); } catch { /* already closing */ }
-              settle();
+              closeAndSettle();
             }, PING_ACK_TIMEOUT_MS);
           }, PING_INTERVAL_MS);
 
@@ -255,6 +263,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
         };
       } catch (error) {
         console.error('Error creating WebSocket connection:', error);
+        settle();
       }
     };
 

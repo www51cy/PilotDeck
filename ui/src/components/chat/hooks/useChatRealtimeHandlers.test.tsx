@@ -951,6 +951,28 @@ describe('useChatRealtimeHandlers model request terminals', () => {
     expect(setPilotDeckStatus).toHaveBeenCalledWith(null);
   });
 
+  it('clears retry progress owned by a model request when that request completes', () => {
+    const { setClaudeStatus, setPilotDeckStatus } = mount('run-1');
+    act(() => {
+      mocks.listener?.(status('run-1', 'model_request_started'));
+      mocks.listener?.({
+        ...status('run-1', 'Reconnecting... 1/3'),
+        retryProgress: {
+          attempt: 1,
+          maxAttempts: 3,
+          delayMs: 1000,
+          reason: 'network_error',
+          provider,
+          model: 'model-a',
+        },
+      });
+      mocks.listener?.(status('run-1', 'model_request_completed'));
+    });
+
+    expect(setPilotDeckStatus).toHaveBeenLastCalledWith(null);
+    expect(setClaudeStatus).toHaveBeenLastCalledWith(null);
+  });
+
   it('ignores a late terminal from a superseded run', () => {
     // The client already moved on to run-2; a late terminal for run-1 must not
     // wipe the newer run's state.

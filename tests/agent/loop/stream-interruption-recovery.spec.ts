@@ -526,6 +526,68 @@ test("native OpenAI tool calls still dispatch exactly once alongside literal exa
   assert.equal(events.find((event) => event.type === "turn_completed")?.result.type, "success");
 });
 
+test("a terminal in-band model error pairs the started request with one explicit failure", async () => {
+  const loop = createLoop(async function* () {
+    yield { type: "message_start", role: "assistant" };
+    yield {
+      type: "error",
+      error: {
+        provider: "test",
+        protocol: "openai",
+        code: "invalid_request",
+        message: "The provider rejected this request",
+        retryable: false,
+      },
+    };
+  }, () => undefined);
+
+  const events: AgentEvent[] = [];
+  for await (const event of loop.run({
+    sessionId: "terminal-in-band-error",
+    turnId: "turn-1",
+    messages: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
+  })) events.push(event);
+
+  assert.deepEqual(events.flatMap(event =>
+    event.type === "model_request_started"
+    || event.type === "model_request_completed"
+    || event.type === "model_request_failed"
+      ? [event.type]
+      : []
+  ), ["model_request_started", "model_request_failed"]);
+  const failed = events.find(event => event.type === "model_request_failed");
+  assert.equal(failed?.type, "model_request_failed");
+  if (failed?.type === "model_request_failed") {
+    assert.equal(failed.provider, "test");
+    assert.equal(failed.model, "test-model");
+    assert.equal(failed.error.code, "agent_model_error");
+  }
+  assert.equal(events.find(event => event.type === "turn_completed")?.result.type, "error");
+});
+
+test("a successful model request has exactly one explicit completion", async () => {
+  const loop = createLoop(async function* () {
+    yield { type: "message_start", role: "assistant" };
+    yield { type: "text_delta", text: "done" };
+    yield { type: "message_end", finishReason: "stop" };
+  }, () => undefined);
+
+  const events: AgentEvent[] = [];
+  for await (const event of loop.run({
+    sessionId: "successful-request-terminal",
+    turnId: "turn-1",
+    messages: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
+  })) events.push(event);
+
+  assert.deepEqual(events.flatMap(event =>
+    event.type === "model_request_started"
+    || event.type === "model_request_completed"
+    || event.type === "model_request_failed"
+      ? [event.type]
+      : []
+  ), ["model_request_started", "model_request_completed"]);
+});
+
 function createLoop(
   execute: AgentRouterRuntime["execute"],
   onSchedule: (calls: CanonicalToolCall[]) => void,

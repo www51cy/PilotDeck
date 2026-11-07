@@ -18,6 +18,7 @@ class Socket extends EventTarget {
   static instances: Socket[] = [];
   readyState = 1;
   sent: any[] = [];
+  sendError: Error | null = null;
   closeCalls = 0;
   onopen: (() => void) | null = null;
   onclose: (() => void) | null = null;
@@ -26,7 +27,10 @@ class Socket extends EventTarget {
     super();
     Socket.instances.push(this);
   }
-  send(payload: string) { this.sent.push(JSON.parse(payload)); }
+  send(payload: string) {
+    if (this.sendError) throw this.sendError;
+    this.sent.push(JSON.parse(payload));
+  }
   close() {
     this.closeCalls += 1;
     this.readyState = 3;
@@ -40,9 +44,11 @@ class Socket extends EventTarget {
 const pings = (socket: Socket) => socket.sent.filter((frame) => frame.type === 'ping');
 
 let received: any[] = [];
+let sendMessage: ReturnType<typeof useWebSocket>['sendMessage'];
 
 function Probe() {
-  const { subscribe } = useWebSocket();
+  const { subscribe, sendMessage: send } = useWebSocket();
+  sendMessage = send;
   useEffect(() => subscribe((message) => { received.push(message); }), [subscribe]);
   return null;
 }
@@ -135,6 +141,72 @@ describe('heartbeat ACK tracking', () => {
     act(() => vi.advanceTimersByTime(PING_ACK_TIMEOUT_MS));
 
     expect(socket.closeCalls).toBe(1);
+  });
+
+  it('accepts a pong without a request id for compatibility with existing smoke servers', () => {
+    const socket = renderConnected();
+    act(() => vi.advanceTimersByTime(PING_INTERVAL_MS));
+
+    act(() => socket.receive({ type: 'pong' }));
+    act(() => vi.advanceTimersByTime(PING_ACK_TIMEOUT_MS - 1));
+
+    expect(socket.closeCalls).toBe(0);
+    expect(Socket.instances).toHaveLength(1);
+  });
+
+  it('settles and reconnects when sending a heartbeat throws', () => {
+    const socket = renderConnected();
+    socket.sendError = new Error('fixture send failure');
+
+    act(() => vi.advanceTimersByTime(PING_INTERVAL_MS));
+
+    expect(socket.closeCalls).toBe(1);
+    act(() => vi.advanceTimersByTime(1000));
+    expect(Socket.instances).toHaveLength(2);
+  });
+
+  it('settles and reconnects when flushing a queued request throws on open', () => {
+    render(
+      <WebSocketProvider>
+        <Probe />
+      </WebSocketProvider>,
+    );
+    const socket = Socket.instances[0];
+    act(() => {
+      sendMessage({ type: 'check-session-status', sessionId: 'session-1' });
+    });
+    socket.sendError = new Error('fixture flush failure');
+
+    let openError: unknown;
+    act(() => {
+      try { socket.onopen?.(); } catch (error) { openError = error; }
+    });
+
+    expect(openError).toBeUndefined();
+    expect(socket.closeCalls).toBe(1);
+    act(() => vi.advanceTimersByTime(1000));
+    expect(Socket.instances).toHaveLength(2);
+  });
+
+  it('schedules the existing backoff when the WebSocket constructor throws', () => {
+    class ThrowingSocket extends Socket {
+      constructor() {
+        super();
+        throw new Error('fixture constructor failure');
+      }
+    }
+    vi.stubGlobal('WebSocket', ThrowingSocket);
+
+    render(
+      <WebSocketProvider>
+        <Probe />
+      </WebSocketProvider>,
+    );
+    expect(Socket.instances).toHaveLength(1);
+
+    act(() => vi.advanceTimersByTime(1000));
+
+    expect(Socket.instances).toHaveLength(2);
   });
 
   it('does not dispatch pongs to business subscribers', () => {

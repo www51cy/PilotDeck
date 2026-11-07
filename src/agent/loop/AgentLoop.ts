@@ -624,6 +624,14 @@ export class AgentLoop {
                 const failure = await contextOverflowAfterEmergency(recompact);
                 yield { type: "stop_failure", sessionId: input.sessionId, turnId: input.turnId, error: failure.error.message };
                 yield await emitStatus(createModelRequestFailedStatus({ error: failure.error }));
+                yield {
+                  type: "model_request_failed",
+                  sessionId: input.sessionId,
+                  turnId: input.turnId,
+                  model: decision.model,
+                  provider: decision.provider,
+                  error: failure.error,
+                };
                 yield { type: "turn_failed", sessionId: input.sessionId, turnId: input.turnId, error: failure.error };
                 await captureTurn(true);
                 yield { type: "turn_completed", sessionId: input.sessionId, turnId: input.turnId, result: failure.result };
@@ -1350,6 +1358,14 @@ export class AgentLoop {
                   const failure = await contextOverflowAfterEmergency(compact);
                   yield { type: "stop_failure", sessionId: input.sessionId, turnId: input.turnId, error: failure.error.message };
                   yield await emitStatus(createModelRequestFailedStatus({ error: failure.error }));
+                  yield {
+                    type: "model_request_failed",
+                    sessionId: input.sessionId,
+                    turnId: input.turnId,
+                    model: decision.model,
+                    provider: decision.provider,
+                    error: failure.error,
+                  };
                   yield { type: "turn_failed", sessionId: input.sessionId, turnId: input.turnId, error: failure.error };
                   await captureTurn(true);
                   yield { type: "turn_completed", sessionId: input.sessionId, turnId: input.turnId, result: failure.result };
@@ -1489,6 +1505,14 @@ export class AgentLoop {
           error: classified.error,
           modelError: assembled.error,
         }));
+        yield {
+          type: "model_request_failed",
+          sessionId: input.sessionId,
+          turnId: input.turnId,
+          model: decision.model,
+          provider: decision.provider,
+          error: classified.error,
+        };
         yield { type: "turn_failed", sessionId: input.sessionId, turnId: input.turnId, error: result.errors![0]! };
         await captureTurn(result.type === "error");
         yield { type: "turn_completed", sessionId: input.sessionId, turnId: input.turnId, result };
