@@ -1,5 +1,5 @@
 import { THINKING_EFFORTS, thinkingFormatsForProtocol, type ModelThinkingSettings, type ThinkingFormat } from '../../../../../../../src/model/thinking/settings.js';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { CheckCircle2, CircleHelp, Loader2, Plug, XCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ConfirmDialog } from '../../../../ui/ConfirmDialog';
@@ -13,6 +13,7 @@ type Props = {
   initial: ModelSettingsPatch;
   task?: ConnectionTestTask;
   testDisabled: boolean;
+  saveDisabled?: boolean;
   testDisabledReason?: string;
   saveBeforeTest?: boolean;
   blockingTask?: ConnectionTestTask;
@@ -24,9 +25,10 @@ type Props = {
   onCancelTest: () => void;
   onSave: (patch: ModelSettingsPatch) => Promise<{ ok: boolean; error?: string }>;
   onClose: () => void;
+  children?: ReactNode;
 };
 
-export default function ModelSettingsModal({ modelId, protocol = 'openai', initial, task, testDisabled, testDisabledReason, saveBeforeTest = false, blockingTask, onCancelBlockingTest, cancellingBlockedTest, applyTestResult = true, testError, onTest, onCancelTest, onSave, onClose }: Props) {
+export default function ModelSettingsModal({ modelId, protocol = 'openai', initial, task, testDisabled, saveDisabled = false, testDisabledReason, saveBeforeTest = false, blockingTask, onCancelBlockingTest, cancellingBlockedTest, applyTestResult = true, testError, onTest, onCancelTest, onSave, onClose, children }: Props) {
   const { t } = useTranslation('settings');
   const label = (key: string) => t(`pilotDeckConfig.panels.models.modelSettings.${key}`);
   const [output, setOutput] = useState(String(initial.maxOutputTokens));
@@ -86,7 +88,7 @@ export default function ModelSettingsModal({ modelId, protocol = 'openai', initi
     : result?.error?.message;
   const imageUnconfirmed = result?.textInput === 'supported' && result?.imageInput === 'unknown';
   const inputClass = 'mt-2 h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary';
-  return <ConfirmDialog title={label('title')} confirmLabel={label('save')} busy={busy} disabled={!valid || running} error={error} onCancel={onClose} onConfirm={() => void save()}>
+  return <ConfirmDialog title={label('title')} confirmLabel={label('save')} busy={busy} disabled={!valid || running || saveDisabled} error={error} onCancel={onClose} onConfirm={() => void save()}>
     <p className="mb-5 break-all text-sm font-medium text-foreground">{modelId}</p>
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <label className="text-xs font-medium">{t('pilotDeckConfig.panels.models.maxOutputTokens')}
@@ -123,6 +125,7 @@ export default function ModelSettingsModal({ modelId, protocol = 'openai', initi
         </select>
       </label>
       <p className="mt-2 text-xs text-muted-foreground">{label('thinkingFormatHelp')}</p>
+      {children}
     </details>
     <div className="border-t border-border pt-4">
       <div className="flex items-center justify-between gap-3">

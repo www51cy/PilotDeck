@@ -1107,12 +1107,6 @@
   gap: 12px;
 }
 
-:where(.pilotdeck-settings-app) .provider-advanced-section summary {
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-}
-
 :where(.pilotdeck-settings-app) .provider-advanced-section .field-help {
   display: block;
   margin: 8px 0 12px;
