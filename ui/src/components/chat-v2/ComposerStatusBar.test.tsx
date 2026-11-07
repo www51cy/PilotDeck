@@ -12,66 +12,42 @@ const t = ((key: string, options?: Record<string, unknown>) =>
 afterEach(cleanup);
 
 describe('ComposerStatusBar', () => {
-  it('renders nothing in the default state', () => {
+  it('stays visible in the default state with muted labels', () => {
     render(
       <ComposerStatusBar
         runMode="agent"
         permissionMode="default"
-        projectName="only-project"
-        projectCount={1}
-        t={t}
-      />,
-    );
-
-    expect(screen.queryByTestId('composer-statusbar')).toBeNull();
-  });
-
-  it('shows the active run mode without the full-access warning', () => {
-    render(
-      <ComposerStatusBar
-        runMode="plan"
-        permissionMode="default"
-        projectName="only-project"
-        projectCount={1}
-        t={t}
-      />,
-    );
-
-    expect(screen.getByTestId('composer-status-run-mode').textContent).toBe('Plan');
-    expect(screen.queryByTestId('composer-status-full-access')).toBeNull();
-    // A single project is implicit and stays hidden.
-    expect(screen.queryByTestId('composer-status-workspace')).toBeNull();
-  });
-
-  it('warns on bypass permissions and names the workspace when several exist', () => {
-    render(
-      <ComposerStatusBar
-        runMode="agent"
-        permissionMode="bypassPermissions"
         projectName="pilotdeck"
-        projectCount={3}
         t={t}
       />,
     );
 
-    expect(screen.getByTestId('composer-status-full-access').textContent).toBe('Full Access');
-    expect(screen.queryByTestId('composer-status-run-mode')).toBeNull();
+    expect(screen.getByTestId('composer-statusbar')).toBeTruthy();
+    expect(screen.getByTestId('composer-status-run-mode').textContent).toBe('Agent');
+    expect(screen.getByTestId('composer-status-permission').textContent).toBe('Default');
     expect(screen.getByTestId('composer-status-workspace').textContent).toContain('pilotdeck');
   });
 
-  it('shows all three badges at once when every condition holds', () => {
-    render(
-      <ComposerStatusBar
-        runMode="ask"
-        permissionMode="bypassPermissions"
-        projectName="repo-a"
-        projectCount={2}
-        t={t}
-      />,
-    );
+  it('highlights an active run mode', () => {
+    render(<ComposerStatusBar runMode="plan" permissionMode="default" t={t} />);
 
+    const badge = screen.getByTestId('composer-status-run-mode');
+    expect(badge.textContent).toBe('Plan');
+    expect(badge.className).toContain('violet');
+  });
+
+  it('highlights bypass permissions as a warning', () => {
+    render(<ComposerStatusBar runMode="agent" permissionMode="bypassPermissions" t={t} />);
+
+    const badge = screen.getByTestId('composer-status-permission');
+    expect(badge.textContent).toBe('Full Access');
+    expect(badge.className).toContain('amber');
+  });
+
+  it('omits the workspace segment when no project is selected', () => {
+    render(<ComposerStatusBar runMode="ask" permissionMode="default" t={t} />);
+
+    expect(screen.queryByTestId('composer-status-workspace')).toBeNull();
     expect(screen.getByTestId('composer-status-run-mode').textContent).toBe('Ask');
-    expect(screen.getByTestId('composer-status-full-access')).toBeTruthy();
-    expect(screen.getByTestId('composer-status-workspace').textContent).toContain('repo-a');
   });
 });

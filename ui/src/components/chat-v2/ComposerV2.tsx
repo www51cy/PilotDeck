@@ -252,61 +252,77 @@ function DefaultPermissionIcon({
   );
 }
 
+/** `projectKey` is a workspace path; surface its last segment as the label. */
+function workspaceNameFromKey(projectKey: string | undefined): string | undefined {
+  if (!projectKey) return undefined;
+  const segments = projectKey.split(/[\\/]/).filter(Boolean);
+  return segments.length > 0 ? segments[segments.length - 1] : undefined;
+}
+
 /**
- * Shows only the non-default composer context: an active run mode, the
- * bypass-permissions warning, and the workspace name when several projects
- * exist. In the default state nothing renders, so the composer keeps its
- * original height.
+ * Always-visible composer context strip: run mode, permission mode, and the
+ * current workspace. Default states stay muted so the strip never competes
+ * with the input; only Plan/Ask and Full Access get colour.
  */
 export function ComposerStatusBar({
   runMode,
   permissionMode,
   projectName,
-  projectCount,
   t,
 }: {
   runMode: ChatRunMode;
   permissionMode: PermissionMode;
   projectName?: string;
-  projectCount: number;
   t: TFunction;
 }) {
-  const showRunMode = runMode !== "agent";
-  const showFullAccess = permissionMode === "bypassPermissions";
-  const showProject = projectCount > 1 && Boolean(projectName);
-  if (!showRunMode && !showFullAccess && !showProject) return null;
+  const runModeLabel = runMode === "plan"
+    ? t("input.runModes.plan", { defaultValue: "Plan" })
+    : runMode === "ask"
+      ? t("input.runModes.ask", { defaultValue: "Ask" })
+      : t("input.runModes.agent", { defaultValue: "Agent" });
+  const runModeTone = runMode === "plan"
+    ? "border-violet-200 bg-violet-50 font-[650] text-violet-700 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-200"
+    : runMode === "ask"
+      ? "border-sky-200 bg-sky-50 font-[650] text-sky-700 dark:border-sky-800 dark:bg-sky-950/50 dark:text-sky-200"
+      : "border-transparent bg-transparent text-neutral-500 dark:text-neutral-400";
+
+  const fullAccess = permissionMode === "bypassPermissions";
+  const permissionLabel = fullAccess
+    ? t("input.permissions.bypassPermissions", { defaultValue: "Full Access" })
+    : t("input.permissions.default", { defaultValue: "Default" });
+  const permissionTone = fullAccess
+    ? "border-amber-300 bg-amber-50 font-[650] text-amber-800 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-200"
+    : "border-transparent bg-transparent text-neutral-500 dark:text-neutral-400";
 
   return (
     <div
       className="pd-composer-statusbar mb-1.5 flex min-h-[22px] flex-wrap items-center gap-1.5 px-1 text-[11px] leading-none"
       data-testid="composer-statusbar"
     >
-      {showRunMode ? (
-        <span
-          className="inline-flex items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-1.5 py-1 font-[650] text-violet-700 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-200"
-          data-testid="composer-status-run-mode"
-        >
-          {runMode === "plan"
-            ? t("input.runModes.plan", { defaultValue: "Plan" })
-            : t("input.runModes.ask", { defaultValue: "Ask" })}
-        </span>
-      ) : null}
-      {showFullAccess ? (
-        <span
-          className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-1.5 py-1 font-[650] text-amber-800 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-200"
-          data-testid="composer-status-full-access"
-        >
-          {t("input.permissions.bypassPermissions", { defaultValue: "Full Access" })}
-        </span>
-      ) : null}
-      {showProject ? (
-        <span
-          className="inline-flex min-w-0 items-center gap-1 text-neutral-500 dark:text-neutral-400"
-          data-testid="composer-status-workspace"
-          title={projectName}
-        >
-          <span className="truncate">{projectName}</span>
-        </span>
+      <span
+        className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-1 ${runModeTone}`}
+        data-testid="composer-status-run-mode"
+      >
+        {runModeLabel}
+      </span>
+      <span aria-hidden="true" className="text-neutral-300 dark:text-neutral-700">·</span>
+      <span
+        className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-1 ${permissionTone}`}
+        data-testid="composer-status-permission"
+      >
+        {permissionLabel}
+      </span>
+      {projectName ? (
+        <>
+          <span aria-hidden="true" className="text-neutral-300 dark:text-neutral-700">·</span>
+          <span
+            className="inline-flex min-w-0 items-center gap-1 text-neutral-500 dark:text-neutral-400"
+            data-testid="composer-status-workspace"
+            title={projectName}
+          >
+            <span className="truncate">{projectName}</span>
+          </span>
+        </>
       ) : null}
     </div>
   );
@@ -1042,8 +1058,7 @@ export default function ComposerV2({
               <ComposerStatusBar
                 runMode={runMode}
                 permissionMode={permissionMode}
-                projectName={workspaceSelectedProject?.name}
-                projectCount={workspaceProjects?.length ?? 0}
+                projectName={workspaceSelectedProject?.name ?? workspaceNameFromKey(projectKey)}
                 t={t}
               />
               <input
