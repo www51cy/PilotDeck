@@ -134,14 +134,14 @@ export default function ModelSettingsModal({ modelId, protocol = 'openai', initi
           {running ? label('testing') : saveBeforeTest || dirty ? label('saveAndTest') : t('pilotDeckConfig.panels.models.testConnection')}
         </button>
         {running && <button type="button" disabled={task?.status === 'cancelling'} className="text-xs text-muted-foreground hover:text-foreground" onClick={onCancelTest}>{label('cancelTest')}</button>}
+        {!running && result && <div className="flex items-center gap-4 text-xs" role="status">
+          <span className="flex items-center gap-1.5">{label('textRequest')}{status(result.textInput)}</span>
+          <span className="flex items-center gap-1.5">{label('imageRequest')}{status(result.imageInput)}</span>
+        </div>}
       </div>
       {reason && <p id={reasonId} role="status" className="mt-3 text-xs text-muted-foreground">{reason}</p>}
       {blockingTask && onCancelBlockingTest && <button type="button" disabled={cancellingBlockedTest || blockingTask.status === 'cancelling' || blockingTask.status === 'savingTest'} onClick={onCancelBlockingTest} className="mt-2 text-xs text-primary hover:underline disabled:opacity-40">{label('cancelPreviousTest')}</button>}
-      {!running && result && <div className="mt-3 space-y-2 rounded-lg bg-muted/40 p-3 text-xs" role="status">
-        <div className="flex items-center justify-between">{label('textRequest')}{status(result.textInput)}</div>
-        <div className="flex items-center justify-between">{label('imageRequest')}{status(result.imageInput)}</div>
-        {probeMessage && <p className={`break-words ${imageUnconfirmed ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>{probeMessage}</p>}
-      </div>}
+      {!running && result && probeMessage && <p className={`mt-3 break-words text-xs ${imageUnconfirmed ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>{probeMessage}</p>}
       {(testError || task?.message) && <p role="status" className="mt-3 text-xs text-destructive">{testError || task?.message}</p>}
     </div>
   </ConfirmDialog>;
