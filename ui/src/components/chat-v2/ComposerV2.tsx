@@ -3,6 +3,7 @@ import ContextPanel, { type ContextTarget } from '../chat-context/ContextPanel';
 import { useFloatingPanel } from "../ui/useFloatingPanel";
 import { useModelMenuLayout } from "./useModelMenuLayout";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type {
   ChangeEvent,
@@ -248,6 +249,66 @@ function DefaultPermissionIcon({
       <path d="M6 17V9a6 6 0 0 1 12 0v8" />
       <path d="M9 21h6" />
     </svg>
+  );
+}
+
+/**
+ * Shows only the non-default composer context: an active run mode, the
+ * bypass-permissions warning, and the workspace name when several projects
+ * exist. In the default state nothing renders, so the composer keeps its
+ * original height.
+ */
+export function ComposerStatusBar({
+  runMode,
+  permissionMode,
+  projectName,
+  projectCount,
+  t,
+}: {
+  runMode: ChatRunMode;
+  permissionMode: PermissionMode;
+  projectName?: string;
+  projectCount: number;
+  t: TFunction;
+}) {
+  const showRunMode = runMode !== "agent";
+  const showFullAccess = permissionMode === "bypassPermissions";
+  const showProject = projectCount > 1 && Boolean(projectName);
+  if (!showRunMode && !showFullAccess && !showProject) return null;
+
+  return (
+    <div
+      className="pd-composer-statusbar mb-1.5 flex min-h-[22px] flex-wrap items-center gap-1.5 px-1 text-[11px] leading-none"
+      data-testid="composer-statusbar"
+    >
+      {showRunMode ? (
+        <span
+          className="inline-flex items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-1.5 py-1 font-[650] text-violet-700 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-200"
+          data-testid="composer-status-run-mode"
+        >
+          {runMode === "plan"
+            ? t("input.runModes.plan", { defaultValue: "Plan" })
+            : t("input.runModes.ask", { defaultValue: "Ask" })}
+        </span>
+      ) : null}
+      {showFullAccess ? (
+        <span
+          className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-1.5 py-1 font-[650] text-amber-800 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-200"
+          data-testid="composer-status-full-access"
+        >
+          {t("input.permissions.bypassPermissions", { defaultValue: "Full Access" })}
+        </span>
+      ) : null}
+      {showProject ? (
+        <span
+          className="inline-flex min-w-0 items-center gap-1 text-neutral-500 dark:text-neutral-400"
+          data-testid="composer-status-workspace"
+          title={projectName}
+        >
+          <span className="truncate">{projectName}</span>
+        </span>
+      ) : null}
+    </div>
   );
 }
 
@@ -978,6 +1039,13 @@ export default function ComposerV2({
               )}
             >
               <input {...getInputProps()} />
+              <ComposerStatusBar
+                runMode={runMode}
+                permissionMode={permissionMode}
+                projectName={workspaceSelectedProject?.name}
+                projectCount={workspaceProjects?.length ?? 0}
+                t={t}
+              />
               <input
                 ref={directoryInputRef}
                 type="file"
