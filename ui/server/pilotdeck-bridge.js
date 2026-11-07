@@ -955,6 +955,28 @@ export function gatewayEventToFrames(event, sessionId, provider) {
                     provider: event.provider,
                 }),
             ];
+        // Explicit model-request terminals. They are forwarded as their own
+        // status text so the client can clear the model state for the matching
+        // run instead of falling into the generic status branch (which would
+        // repaint "model_request_started").
+        case 'model_request_completed':
+            return [
+                createNormalizedMessage({
+                    ...base,
+                    kind: 'status',
+                    text: 'model_request_completed',
+                    ...(event.finishReason ? { finishReason: event.finishReason } : {}),
+                }),
+            ];
+        case 'model_request_failed':
+            return [
+                createNormalizedMessage({
+                    ...base,
+                    kind: 'status',
+                    text: 'model_request_failed',
+                    ...(event.code ? { code: event.code } : {}),
+                }),
+            ];
         case 'assistant_stream_end':
             return [createNormalizedMessage({ ...base, kind: 'stream_end' })];
         case 'assistant_block':

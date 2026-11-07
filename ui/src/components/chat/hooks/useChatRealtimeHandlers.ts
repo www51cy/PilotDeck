@@ -420,6 +420,10 @@ export function useChatRealtimeHandlers({
   const sessionStatusRetryTimersRef = useRef<Map<string, number>>(new Map());
   const activeRunIdRef = useRef<string | null>(activeRunId);
   activeRunIdRef.current = activeRunId;
+  // Which status the panel is currently showing. `setPilotDeckStatus` is a
+  // plain setter, so an explicit model-request terminal needs this to avoid
+  // clearing a status that already moved on (permission, compaction).
+  const lastStatusTextRef = useRef<string | null>(null);
   const updateActiveRunId = useCallback((runId: string | null) => {
     activeRunIdRef.current = runId;
     setActiveRunId(runId);
@@ -541,6 +545,7 @@ export function useChatRealtimeHandlers({
             setIsLoading(true);
             setCanAbortSession(true);
             setIsAborting(false);
+            lastStatusTextRef.current = null;
             setClaudeStatus(null);
             setPilotDeckStatus(null);
           }
@@ -689,6 +694,7 @@ export function useChatRealtimeHandlers({
             setSessionRuntimeState('inactive');
             setIsLoading(false);
             setCanAbortSession(false);
+            lastStatusTextRef.current = null;
             setClaudeStatus(null);
             setPilotDeckStatus(null);
           }
@@ -989,6 +995,7 @@ export function useChatRealtimeHandlers({
           setIsLoading(false);
           setCanAbortSession(false);
           setIsAborting(false);
+          lastStatusTextRef.current = null;
           setClaudeStatus(null);
           setPilotDeckStatus(null);
         }
@@ -1086,6 +1093,7 @@ export function useChatRealtimeHandlers({
           setIsLoading(false);
           setCanAbortSession(false);
           setIsAborting(false);
+          lastStatusTextRef.current = null;
           setClaudeStatus(null);
           setPilotDeckStatus(null);
         }
@@ -1119,6 +1127,7 @@ export function useChatRealtimeHandlers({
         setIsLoading(true);
         setCanAbortSession(true);
         const waitingText = /^(ask_?user_?question)$/i.test(msg.toolName || '') ? 'Waiting for answer' : 'Waiting for approval';
+        lastStatusTextRef.current = waitingText;
         setClaudeStatus({ text: waitingText, tokens: 0, can_interrupt: true });
         setPilotDeckStatus({ text: waitingText, tokens: 0, can_interrupt: true });
         break;
@@ -1132,6 +1141,21 @@ export function useChatRealtimeHandlers({
       }
 
       case 'status': {
+        if (msg.text === 'model_request_completed' || msg.text === 'model_request_failed') {
+          // Explicit terminal for the request announced by
+          // `model_request_started`. Clear only what that request owns:
+          //  - a terminal for a superseded run must not wipe the newer run;
+          //  - a status that already moved on (permission, compaction) stays.
+          const belongsToCurrentRun = !msgRunId || !activeRunIdRef.current || msgRunId === activeRunIdRef.current;
+          if (belongsToCurrentRun && lastStatusTextRef.current === 'model_request_started') {
+            lastStatusTextRef.current = null;
+            if (isForActiveView) {
+              setClaudeStatus(null);
+              setPilotDeckStatus(null);
+            }
+          }
+          break;
+        }
         if (msg.text === 'started' && msgRunId) {
           clearSessionStatusRetry(sid);
           invalidateSessionStatusResponses(sid);
@@ -1146,9 +1170,11 @@ export function useChatRealtimeHandlers({
         if (msg.text === 'token_budget' && msg.tokenBudget) {
           setTokenBudget(msg.tokenBudget as Record<string, unknown>);
         } else if (msg.text === 'clear_status') {
+          lastStatusTextRef.current = null;
           setClaudeStatus(null);
           setPilotDeckStatus(null);
         } else if (msg.text) {
+          lastStatusTextRef.current = msg.text;
           setClaudeStatus({
             text: msg.text,
             tokens: msg.tokens || 0,
@@ -1174,6 +1200,7 @@ export function useChatRealtimeHandlers({
           if (msg.tokenBudget) {
             setTokenBudget(msg.tokenBudget as Record<string, unknown>);
           }
+          lastStatusTextRef.current = null;
           setClaudeStatus(null);
           setPilotDeckStatus(null);
           setIsLoading(true);

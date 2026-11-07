@@ -193,6 +193,12 @@ export type GatewayEvent = GatewayTurnScopedEventMetadata & (
   | { type: "steer_applied"; itemId: string; message: CanonicalMessage }
   | { type: "steer_unapplied"; itemId: string; reason: "turn_ended" }
   | { type: "model_request_started"; model?: string; provider?: string }
+  /**
+   * Terminal state of the request announced by `model_request_started`.
+   * Correlated by run/turn; it is not a per-call id yet.
+   */
+  | { type: "model_request_completed"; model?: string; provider?: string; finishReason?: string }
+  | { type: "model_request_failed"; model?: string; provider?: string; message?: string; code?: string }
   | {
       type: "model_selection_changed";
       provider: string;

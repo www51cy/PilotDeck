@@ -742,6 +742,14 @@ export class AgentLoop {
             modelError,
           }));
         }
+        yield {
+          type: "model_request_failed",
+          sessionId: input.sessionId,
+          turnId: input.turnId,
+          model: decision.model,
+          provider: decision.provider,
+          error: result.errors![0]!,
+        };
         yield { type: "turn_failed", sessionId: input.sessionId, turnId: input.turnId, error: result.errors![0]! };
         await captureTurn(result.type === "error");
         yield { type: "turn_completed", sessionId: input.sessionId, turnId: input.turnId, result };
@@ -857,6 +865,14 @@ export class AgentLoop {
           errors: [error],
         });
         yield await emitStatus(createModelRequestFailedStatus({ error, modelError: assembled.error }));
+        yield {
+          type: "model_request_failed",
+          sessionId: input.sessionId,
+          turnId: input.turnId,
+          model: decision.model,
+          provider: decision.provider,
+          error,
+        };
         yield { type: "turn_failed", sessionId: input.sessionId, turnId: input.turnId, error };
         await captureTurn(true);
         yield { type: "turn_completed", sessionId: input.sessionId, turnId: input.turnId, result };
@@ -914,6 +930,14 @@ export class AgentLoop {
           errors: [error],
         });
         yield await emitStatus(createModelRequestFailedStatus({ error }));
+        yield {
+          type: "model_request_failed",
+          sessionId: input.sessionId,
+          turnId: input.turnId,
+          model: decision.model,
+          provider: decision.provider,
+          error,
+        };
         yield { type: "turn_failed", sessionId: input.sessionId, turnId: input.turnId, error };
         await captureTurn(true);
         yield { type: "turn_completed", sessionId: input.sessionId, turnId: input.turnId, result };
@@ -1151,6 +1175,22 @@ export class AgentLoop {
       messages.push(assistantMessage);
       yield { type: "assistant_message", sessionId: input.sessionId, turnId: input.turnId, message: assistantMessage };
       await input.onDurableMessage?.(assistantMessage);
+
+      // The provider stream is fully consumed and the turn is moving on (tool
+      // execution or turn end). This is the only place a request is considered
+      // finished: `tool_call_start` and `message_end` alone cannot tell a
+      // fallback retry from a real completion, because `router.execute` may
+      // still emit further events for the same request.
+      if (!assembled.error) {
+        yield {
+          type: "model_request_completed",
+          sessionId: input.sessionId,
+          turnId: input.turnId,
+          model: decision.model,
+          provider: decision.provider,
+          ...(assembled.finishReason ? { finishReason: assembled.finishReason } : {}),
+        };
+      }
 
       if (assembled.error) {
         if (

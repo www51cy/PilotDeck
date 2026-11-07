@@ -124,3 +124,82 @@ test("subagent errors receive distinct identities before replay serialization", 
   assert.notEqual(first.detail?.errorId, second.detail?.errorId);
   assert.equal(JSON.parse(JSON.stringify(first)).detail.errorId, first.detail?.errorId);
 });
+
+// --- Slice A: explicit model-request terminals -----------------------------
+// `tool_call_start` and `message_end` are stream boundaries, not request
+// terminals: the same request keeps streaming after a tool-call block, and a
+// turn issues several requests. Only the agent loop can decide that a request
+// is over, so the terminal must come from an explicit AgentEvent.
+
+test("model request terminals carry the run id and the mapped model metadata", () => {
+  const started = mapAgentEvent({
+    type: "model_request_started",
+    sessionId: "session-1",
+    turnId: "turn-1",
+    model: "model-a",
+    provider: "provider-a",
+  }, "run-1");
+  assert.deepEqual(started, [{
+    type: "model_request_started",
+    model: "model-a",
+    provider: "provider-a",
+    runId: "run-1",
+  }]);
+
+  const completed = mapAgentEvent({
+    type: "model_request_completed",
+    sessionId: "session-1",
+    turnId: "turn-1",
+    model: "model-a",
+    provider: "provider-a",
+    finishReason: "tool_call",
+  }, "run-1");
+  assert.deepEqual(completed, [{
+    type: "model_request_completed",
+    model: "model-a",
+    provider: "provider-a",
+    finishReason: "tool_call",
+    runId: "run-1",
+  }]);
+
+  const failed = mapAgentEvent({
+    type: "model_request_failed",
+    sessionId: "session-1",
+    turnId: "turn-1",
+    model: "model-a",
+    provider: "provider-a",
+    error: { code: "agent_model_error", message: "provider exploded" } as never,
+  }, "run-1");
+  assert.deepEqual(failed, [{
+    type: "model_request_failed",
+    model: "model-a",
+    provider: "provider-a",
+    message: "provider exploded",
+    code: "agent_model_error",
+    runId: "run-1",
+  }]);
+});
+
+test("canonical message_end and tool_call_start remain stream boundaries only", () => {
+  const messageEnd = mapAgentEvent({
+    type: "model_event",
+    sessionId: "session-1",
+    turnId: "turn-1",
+    event: { type: "message_end", finishReason: "stop" } as never,
+  }, "run-1");
+  assert.deepEqual(messageEnd, [{ type: "assistant_stream_end", runId: "run-1" }]);
+
+  const toolCallStart = mapAgentEvent({
+    type: "model_event",
+    sessionId: "session-1",
+    turnId: "turn-1",
+    event: { type: "tool_call_start", id: "call-1", name: "bash" } as never,
+  }, "run-1");
+  assert.deepEqual(toolCallStart, [{ type: "assistant_stream_end", runId: "run-1" }]);
+
+  // Neither branch may synthesize a request terminal; only the agent loop can.
+  for (const frame of [...messageEnd, ...toolCallStart]) {
+    assert.notEqual(frame.type, "model_request_completed");
+    assert.notEqual(frame.type, "model_request_failed");
+  }
+});

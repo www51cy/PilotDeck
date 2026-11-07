@@ -16,6 +16,33 @@ export type AgentEvent = { timeline?: TimelinePosition; streamBoundary?: StreamB
   | { type: "user_prompt_submitted"; sessionId: string; turnId: string; prompt: string }
   | { type: "setup_completed"; sessionId: string }
   | { type: "model_request_started"; sessionId: string; turnId: string; model: string; provider: string }
+  /**
+   * The request announced by `model_request_started` stopped producing output
+   * and the turn moved on. Emitted once per request, after the whole provider
+   * stream (including router fallbacks) has been consumed.
+   *
+   * `tool_call_start` is NOT a request terminal: the same request keeps
+   * streaming after the tool-call block, and a turn can issue several model
+   * requests. Correlation uses the existing run/turn ids; a full
+   * `modelCallId` state machine is a later change.
+   */
+  | {
+      type: "model_request_completed";
+      sessionId: string;
+      turnId: string;
+      model: string;
+      provider: string;
+      finishReason?: string;
+    }
+  /** The request ended without a usable result and the turn is failing. */
+  | {
+      type: "model_request_failed";
+      sessionId: string;
+      turnId: string;
+      model: string;
+      provider: string;
+      error: AgentError;
+    }
   | { type: "model_event"; sessionId: string; turnId: string; event: CanonicalModelEvent; blockId?: string }
   | { type: "instructions_loaded"; sessionId: string; turnId: string; hasSystemPrompt: boolean }
   | { type: "assistant_message"; sessionId: string; turnId: string; message: CanonicalMessage }
