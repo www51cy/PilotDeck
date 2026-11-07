@@ -1,6 +1,7 @@
 # UI-002 ThinkingBlock 流式结束瞬间强制折叠，覆盖用户手动展开状态
 
 - 状态：本地修复完成（采用方案 A）；组件测试与生产构建通过
+- GitHub Issue：[www51cy/PilotDeck#3](https://github.com/www51cy/PilotDeck/issues/3)
 - 发现日期：2026-11-07
 - 发现方式：源码静态核查 + 历史真实运行态证据（2026-11-06 弹窗可见文本跳变实测）
 - 影响面：子代理详情弹窗、主会话中所有流式 ThinkingBlock

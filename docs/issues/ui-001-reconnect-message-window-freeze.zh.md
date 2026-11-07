@@ -1,6 +1,7 @@
 # UI-001 服务重启后 WebSocket 重连，视图消息窗口冻结（表现为"对话消失"）
 
 - 状态：本地修复完成；自动验收通过，真实服务重启的浏览器端到端验收未执行
+- GitHub Issue：[www51cy/PilotDeck#2](https://github.com/www51cy/PilotDeck/issues/2)
 - 发现日期：2026-11-07
 - 发现方式：真实 Chrome（CDP 直连观察）+ 服务日志 + 磁盘 transcript 三方对照
 - 影响面：开发/部署中服务进程重启后，所有已打开页面的当前会话视图
