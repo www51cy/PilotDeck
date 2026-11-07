@@ -42,6 +42,10 @@ export type AutoCompactResult =
       tier: CompactionTier;
       snapshot: TokenBudgetSnapshot;
       result?: CompactionResult;
+      emergencyTruncation?: {
+        preTokens: number;
+        postTokens: number;
+      };
       /** Set when every emergency tier ran but the request still cannot fit. */
       error?: "context_overflow_after_emergency_compaction";
     };
@@ -477,7 +481,7 @@ export class DefaultContextRuntime implements ContextRuntime {
         rewrittenBytes: micro.rewrittenBytes,
         snapshot: describeTokenBudgetSnapshot(microSnapshot),
       });
-      if (microSnapshot.ratio < 0.90) {
+      if (microSnapshot.ratio < 0.80) {
         if (micro.rewritten === 0) {
           return { type: "skipped", snapshot: microSnapshot };
         }
@@ -491,10 +495,9 @@ export class DefaultContextRuntime implements ContextRuntime {
       }
     }
 
-    // A warning-level context is usable after the deterministic phase. This
-    // guard also preserves the 80%-90% no-summary contract when a caller did
-    // not configure a micro-compaction engine.
-    if (currentSnapshot.ratio < 0.90) {
+    // Below the warning threshold the deterministic phase is sufficient. At
+    // 80% and above, summarize before the context reaches the blocking tier.
+    if (currentSnapshot.ratio < 0.80) {
       return { type: "skipped", snapshot: currentSnapshot };
     }
 
@@ -568,6 +571,7 @@ export class DefaultContextRuntime implements ContextRuntime {
     }
 
     let emergencyApplied = false;
+    let emergencyTruncation: { preTokens: number; postTokens: number } | undefined;
     if (snapshot.ratio >= 0.90) {
       const emergency = await this.runEmergencyCompaction({
         messages: postMessages,
@@ -581,6 +585,7 @@ export class DefaultContextRuntime implements ContextRuntime {
       });
       if (emergency) {
         emergencyApplied = emergency.changed;
+        emergencyTruncation = emergency.truncation;
         finalResult = emergency.result ?? finalResult;
         postMessages = emergency.messages;
         snapshot = emergency.snapshot;
@@ -649,6 +654,7 @@ export class DefaultContextRuntime implements ContextRuntime {
       tier: snapshot.ratio >= 0.90 ? "emergency" : "full",
       snapshot,
       ...(finalResult ? { result: finalResult } : {}),
+      ...(emergencyTruncation ? { emergencyTruncation } : {}),
       ...(overflowAfterEmergency ? { error: "context_overflow_after_emergency_compaction" as const } : {}),
     };
   }
@@ -668,6 +674,7 @@ export class DefaultContextRuntime implements ContextRuntime {
     changed: boolean;
     result?: CompactionResult;
     diagnostics?: ContextDiagnostic[];
+    truncation?: { preTokens: number; postTokens: number };
   } | undefined> {
     let messages = options.messages;
     let snapshot = await options.evaluateBudget(messages);
@@ -734,8 +741,10 @@ export class DefaultContextRuntime implements ContextRuntime {
       }
     }
 
+    const preTruncationSnapshot = snapshot;
     const truncated = truncateHeadPreservingCheckpoint(messages, EMERGENCY_HEAD_KEEP_RATIO);
-    changed ||= !sameMessageSequence(messages, truncated);
+    const headTruncated = !sameMessageSequence(messages, truncated);
+    changed ||= headTruncated;
     messages = truncated;
     snapshot = await options.evaluateBudget(messages);
     const diagnostics: ContextDiagnostic[] = [{
@@ -756,6 +765,9 @@ export class DefaultContextRuntime implements ContextRuntime {
       changed,
       result: persistedEmergencyResult,
       diagnostics,
+      ...(headTruncated
+        ? { truncation: { preTokens: preTruncationSnapshot.tokens, postTokens: snapshot.tokens } }
+        : {}),
     };
   }
 

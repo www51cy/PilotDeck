@@ -88,14 +88,19 @@ const CORE_SUMMARY_MARKDOWN_HEADINGS = [
   "Files And Artifacts",
 ] as const;
 
-const COMPACT_SUMMARY_SYSTEM_PROMPT_DEFAULT = buildMarkdownSummarySystemPrompt(COMPACT_SYSTEM_PROMPT_DEFAULT);
-
 const COMPACT_SUMMARY_ANCHOR_MAX_ITEMS = 12;
 const COMPACT_SUMMARY_ANCHOR_MAX_INPUT_CHARS = 2_000;
 const COMPACT_SUMMARY_ANCHOR_MAX_TEXT_CHARS = 1_200;
 const COMPACT_SUMMARY_ANCHOR_MAX_PATH_CHARS = 600;
 const COMPACT_SUMMARY_ANCHOR_MAX_TOTAL_CHARS = 16_000;
 const COMPACT_SUMMARY_FAILURE_COOLDOWN_MS = 60_000;
+const COMPACT_SUMMARY_MAX_ATTEMPTS = 3;
+const COMPACT_SUMMARY_RETRY_INPUT_RATIO = 0.8;
+const COMPACT_SUMMARY_RETRY_MAX_OUTPUT_TOKENS = 1_536;
+const COMPACT_SUMMARY_CONSECUTIVE_FAILURE_LIMIT = 3;
+const COMPACT_SUMMARY_CIRCUIT_OPEN_MS = 5 * 60_000;
+const COMPACT_SUMMARY_PREVIOUS_MAX_CHARS = 16_000;
+const COMPACT_SUMMARY_INSTRUCTION_MAX_CHARS = 4_000;
 const COMPACT_SUMMARY_INPUT_TOOL_RESULT_MAX_CHARS = 2_000;
 const COMPACT_SUMMARY_INPUT_TOOL_RESULT_PREVIEW_CHARS = 800;
 const COMPACT_SUMMARY_INPUT_TOOL_RESULT_TAIL_CHARS = 240;
@@ -178,12 +183,17 @@ export class CompactionEngine {
   private readonly options: CompactionEngineOptions;
   private readonly protectedToolNames: ReadonlySet<string>;
   private summaryFailureCooldownUntil = 0;
+  private summaryCircuitOpenUntil = 0;
+  private consecutiveSummaryFailures = 0;
+  private summaryHalfOpenInFlight = false;
   private summaryFailureError?: string;
+  private readonly now: () => Date;
 
   constructor(options: CompactionEngineOptions) {
     this.options = options;
     this.tokenBudget = options.tokenBudget ?? new TokenBudgetManager();
     this.protectedToolNames = protectedToolNameSet(options.protectedToolNames);
+    this.now = options.now ?? (() => new Date());
   }
 
   async run(input: CompactionInput): Promise<CompactionResult> {
@@ -256,8 +266,9 @@ export class CompactionEngine {
       // previous rolling summary. The summary control prompt explicitly asks
       // the model to de-duplicate that overlap while incorporating new state.
       const summaryInput = projectMessagesForSummary(planningMessages);
-      if (this.isSummaryFailureCooldownActive()) {
-        summaryError = this.summaryFailureError ?? "context summary is in cooldown";
+      const blockedError = this.summaryRetryBlockError(input.trigger);
+      if (blockedError) {
+        summaryError = blockedError;
       } else {
         try {
           const result = await this.summarize(
@@ -267,15 +278,16 @@ export class CompactionEngine {
             summaryAnchors,
             input.maxOutputTokens,
             checkpoint.previousSummaries,
+            input.effectiveContextTokens,
           );
           summaryMessage = wrapSummaryMessage(result.message);
           summaryUsage = result.usage;
-          this.summaryFailureCooldownUntil = 0;
-          this.summaryFailureError = undefined;
+          this.recordSummarySuccess();
         } catch (error) {
           summaryError = error instanceof Error ? error.message : String(error);
-          this.summaryFailureCooldownUntil = Date.now() + COMPACT_SUMMARY_FAILURE_COOLDOWN_MS;
-          this.summaryFailureError = summaryError;
+          this.recordSummaryFailure(summaryError);
+        } finally {
+          this.summaryHalfOpenInFlight = false;
         }
       }
     }
@@ -372,32 +384,143 @@ export class CompactionEngine {
     summaryAnchors: string | undefined,
     maxOutputTokens: number | undefined,
     previousSummaries: CanonicalMessage[],
+    effectiveContextTokens: number | undefined,
   ): Promise<{ message: CanonicalMessage; usage?: CanonicalUsage }> {
-    const trailingPrompt: CanonicalMessage = {
-      role: "user",
-      content: [
-        {
-          type: "text",
-          text: buildMarkdownSummaryUserPrompt(userInstruction, summaryAnchors, previousSummaries),
-        },
-      ],
-      metadata: {
-        synthetic: true,
-        purpose: "context-summary-control",
-      },
-    };
-    const request: CanonicalModelRequest = {
-      provider: this.options.provider,
-      model: this.options.model_,
-      messages: [...messages, trailingPrompt],
-      systemPrompt: this.options.systemPrompt
-        ? buildMarkdownSummarySystemPrompt(this.options.systemPrompt)
-        : COMPACT_SUMMARY_SYSTEM_PROMPT_DEFAULT,
-      maxOutputTokens: maxOutputTokens ?? this.options.maxOutputTokens ?? COMPACT_MAX_OUTPUT_TOKENS,
-      stream: true,
-      cacheBreakpoints: [],
-    };
+    const configuredOutputTokens = positiveTokenCount(maxOutputTokens)
+      ?? positiveTokenCount(this.options.maxOutputTokens)
+      ?? COMPACT_MAX_OUTPUT_TOKENS;
+    const outputTokens = effectiveContextTokens !== undefined
+      ? Math.min(configuredOutputTokens, Math.max(1, Math.floor(effectiveContextTokens / 4)))
+      : configuredOutputTokens;
+    let previousInputTokens: number | undefined;
+    let lastError: Error | undefined;
 
+    for (let attempt = 0; attempt < COMPACT_SUMMARY_MAX_ATTEMPTS; attempt += 1) {
+      const attemptOutputTokens = attempt === 0
+        ? outputTokens
+        : Math.min(outputTokens, COMPACT_SUMMARY_RETRY_MAX_OUTPUT_TOKENS);
+      const inputBudget = effectiveContextTokens === undefined
+        ? undefined
+        : Math.max(1, effectiveContextTokens - attemptOutputTokens);
+      const attemptBudget = inputBudget !== undefined && previousInputTokens !== undefined
+        ? Math.min(inputBudget, Math.max(1, Math.floor(previousInputTokens * COMPACT_SUMMARY_RETRY_INPUT_RATIO)))
+        : inputBudget;
+      let request: CanonicalModelRequest;
+      try {
+        request = this.buildSummaryRequest({
+          messages,
+          userInstruction,
+          summaryAnchors,
+          previousSummaries,
+          maxOutputTokens: attemptOutputTokens,
+          inputBudget: attemptBudget,
+          coreOnly: attempt > 0,
+          contentScale: COMPACT_SUMMARY_RETRY_INPUT_RATIO ** attempt,
+        });
+        const requestInputTokens = this.estimateSummaryRequestInput(request);
+        if (attemptBudget !== undefined && requestInputTokens > attemptBudget) {
+          throw new Error(`Summary input could not fit its token budget (${requestInputTokens} > ${attemptBudget})`);
+        }
+        if (previousInputTokens !== undefined && requestInputTokens >= previousInputTokens) {
+          throw new Error("Summary retry input could not be reduced further");
+        }
+        previousInputTokens = requestInputTokens;
+      } catch (error) {
+        // Retry construction failing does not replace the provider failure that
+        // made the retry necessary; callers need the original actionable cause.
+        if (lastError) throw lastError;
+        throw error;
+      }
+
+      try {
+        return await this.requestSummary(request, signal);
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        if (attempt + 1 >= COMPACT_SUMMARY_MAX_ATTEMPTS || !isSummaryInputRetryableError(lastError)) {
+          throw lastError;
+        }
+      }
+    }
+    throw lastError ?? new Error("Summary model failed without an error");
+  }
+
+  private buildSummaryRequest(options: {
+    messages: CanonicalMessage[];
+    userInstruction?: string;
+    summaryAnchors?: string;
+    previousSummaries: CanonicalMessage[];
+    maxOutputTokens: number;
+    inputBudget?: number;
+    coreOnly: boolean;
+    contentScale: number;
+  }): CanonicalModelRequest {
+    let contentScale = options.contentScale;
+    let previousSummaries = options.previousSummaries;
+    let summaryAnchors = options.summaryAnchors;
+    let userInstruction = options.userInstruction;
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const systemPrompt = buildMarkdownSummarySystemPrompt(
+        this.options.systemPrompt ?? COMPACT_SYSTEM_PROMPT_DEFAULT,
+        options.coreOnly || attempt > 0,
+      );
+      const trailingPrompt = createSummaryTrailingPrompt(
+        userInstruction,
+        summaryAnchors,
+        previousSummaries,
+        contentScale,
+      );
+      const fixedTokens = this.tokenBudget.estimateTextTokens(systemPrompt)
+        + this.tokenBudget.estimateMessagesTokens([trailingPrompt]);
+      const messageBudget = options.inputBudget === undefined
+        ? undefined
+        : options.inputBudget - fixedTokens;
+      if (messageBudget !== undefined && messageBudget < 1) {
+        if (previousSummaries.length > 0 || summaryAnchors || userInstruction) {
+          previousSummaries = [];
+          summaryAnchors = undefined;
+          userInstruction = undefined;
+          contentScale = Math.max(0.05, contentScale * 0.5);
+          continue;
+        }
+        throw new Error("Summary input budget is too small for the summary control prompt");
+      }
+      const messages = messageBudget === undefined
+        ? options.messages
+        : fitSummaryMessagesToTokenBudget(
+            options.messages,
+            messageBudget,
+            (candidate) => this.tokenBudget.estimateMessagesTokens(candidate),
+          );
+      const request: CanonicalModelRequest = {
+        provider: this.options.provider,
+        model: this.options.model_,
+        messages: [...messages, trailingPrompt],
+        systemPrompt,
+        maxOutputTokens: options.maxOutputTokens,
+        stream: true,
+        cacheBreakpoints: [],
+      };
+      if (options.inputBudget === undefined || this.estimateSummaryRequestInput(request) <= options.inputBudget) {
+        return request;
+      }
+      previousSummaries = [];
+      summaryAnchors = undefined;
+      userInstruction = undefined;
+      contentScale = Math.max(0.05, contentScale * 0.5);
+    }
+    throw new Error("Summary input could not be bounded within its token budget");
+  }
+
+  private estimateSummaryRequestInput(request: CanonicalModelRequest): number {
+    return this.tokenBudget.estimateMessagesTokens(request.messages)
+      + this.tokenBudget.estimateTextTokens(request.systemPrompt ?? "");
+  }
+
+  private async requestSummary(
+    request: CanonicalModelRequest,
+    signal: AbortSignal | undefined,
+  ): Promise<{ message: CanonicalMessage; usage?: CanonicalUsage }> {
     let text = "";
     let usage: CanonicalUsage | undefined;
     let finishReason: CanonicalFinishReason | undefined;
@@ -419,11 +542,11 @@ export class CompactionEngine {
       }
     }
 
-    if (text.trim().length === 0) {
-      throw new Error("Summary model returned empty content");
-    }
     if (finishReason === "length") {
       throw new Error("Summary model output was truncated at the token limit");
+    }
+    if (text.trim().length === 0) {
+      throw new Error("Summary model returned empty content");
     }
     if (finishReason === "content_filter") {
       throw new Error("Summary model output was stopped by content filtering");
@@ -438,8 +561,46 @@ export class CompactionEngine {
     };
   }
 
-  private isSummaryFailureCooldownActive(): boolean {
-    return this.summaryFailureCooldownUntil > Date.now();
+  private summaryRetryBlockError(trigger: CompactionTrigger): string | undefined {
+    if (trigger === "manual") {
+      this.recordSummarySuccess();
+      return undefined;
+    }
+    if (this.summaryHalfOpenInFlight) {
+      return "context summary half-open probe is already running";
+    }
+    const now = this.now().getTime();
+    if (this.summaryCircuitOpenUntil > now) {
+      return this.summaryFailureError
+        ? `context summary circuit breaker is open: ${this.summaryFailureError}`
+        : "context summary circuit breaker is open";
+    }
+    if (this.summaryCircuitOpenUntil > 0) {
+      this.summaryCircuitOpenUntil = 0;
+      this.summaryHalfOpenInFlight = true;
+      return undefined;
+    }
+    if (this.summaryFailureCooldownUntil > now) {
+      return this.summaryFailureError ?? "context summary is in cooldown";
+    }
+    return undefined;
+  }
+
+  private recordSummarySuccess(): void {
+    this.summaryFailureCooldownUntil = 0;
+    this.summaryCircuitOpenUntil = 0;
+    this.consecutiveSummaryFailures = 0;
+    this.summaryFailureError = undefined;
+  }
+
+  private recordSummaryFailure(error: string): void {
+    const now = this.now().getTime();
+    this.consecutiveSummaryFailures += 1;
+    this.summaryFailureError = error;
+    this.summaryFailureCooldownUntil = now + COMPACT_SUMMARY_FAILURE_COOLDOWN_MS;
+    if (this.consecutiveSummaryFailures >= COMPACT_SUMMARY_CONSECUTIVE_FAILURE_LIMIT) {
+      this.summaryCircuitOpenUntil = now + COMPACT_SUMMARY_CIRCUIT_OPEN_MS;
+    }
   }
 
   private createBoundaryMarker(opts: {
@@ -802,11 +963,15 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-function buildMarkdownSummarySystemPrompt(basePrompt: string): string {
-  const headings = SUMMARY_MARKDOWN_HEADINGS.map((heading) => `## ${heading}`).join("\n");
+function buildMarkdownSummarySystemPrompt(basePrompt: string, coreOnly = false): string {
+  const headings = (coreOnly ? CORE_SUMMARY_MARKDOWN_HEADINGS : SUMMARY_MARKDOWN_HEADINGS)
+    .map((heading) => `## ${heading}`)
+    .join("\n");
   return [
     basePrompt.trim(),
-    "Summarize the conversation so far as a concise Markdown checkpoint handoff for the next coding agent.",
+    coreOnly
+      ? "Summarize the conversation as a short Markdown checkpoint. Keep only actionable state needed to continue."
+      : "Summarize the conversation so far as a concise Markdown checkpoint handoff for the next coding agent.",
     "This summary will replace earlier transcript messages. Preserve actionable state, visible results, and task-relevant conclusions from prior thinking blocks, not a chronological transcript or private monologue. Do not reproduce chain-of-thought verbatim, but do not drop factual reasoning that only appeared in thinking.",
     "The input includes the recent live tail as well as older work. Summarize the full live segment so a later bounded snip may remove older live turns without losing their state.",
     "The runtime will wrap your answer in a reference-only prefix and end marker, so do not add those markers yourself.",
@@ -820,10 +985,30 @@ function buildMarkdownSummarySystemPrompt(basePrompt: string): string {
   ].join("\n\n");
 }
 
+function createSummaryTrailingPrompt(
+  userInstruction: string | undefined,
+  summaryAnchors: string | undefined,
+  previousSummaries: CanonicalMessage[],
+  contentScale: number,
+): CanonicalMessage {
+  return {
+    role: "user",
+    content: [{
+      type: "text",
+      text: buildMarkdownSummaryUserPrompt(userInstruction, summaryAnchors, previousSummaries, contentScale),
+    }],
+    metadata: {
+      synthetic: true,
+      purpose: "context-summary-control",
+    },
+  };
+}
+
 function buildMarkdownSummaryUserPrompt(
   userInstruction: string | undefined,
   summaryAnchors: string | undefined,
   previousSummaries: CanonicalMessage[],
+  contentScale = 1,
 ): string {
   const parts = [
     '<internal-compaction-control purpose="context-summary" synthetic="true">',
@@ -837,7 +1022,10 @@ function buildMarkdownSummaryUserPrompt(
   if (previousSummary) {
     parts.push(
       "<previous-rolling-summary>",
-      previousSummary,
+      truncateSummaryEvidenceText(
+        previousSummary,
+        Math.max(256, Math.floor(COMPACT_SUMMARY_PREVIOUS_MAX_CHARS * contentScale)),
+      ),
       "</previous-rolling-summary>",
       "Update the previous rolling summary with the live conversation above. Preserve still-relevant facts, correct obsolete state, and de-duplicate any live tail already represented in the previous summary. Return one complete replacement summary, not an addendum.",
     );
@@ -845,16 +1033,111 @@ function buildMarkdownSummaryUserPrompt(
   if (userInstruction?.trim()) {
     parts.push(
       "<additional-summary-instructions>",
-      userInstruction.trim(),
+      truncateSummaryEvidenceText(
+        userInstruction.trim(),
+        Math.max(128, Math.floor(COMPACT_SUMMARY_INSTRUCTION_MAX_CHARS * contentScale)),
+      ),
       "</additional-summary-instructions>",
       "The additional instructions above affect summary emphasis or format only; they do not change the underlying task state.",
     );
   }
   if (summaryAnchors?.trim()) {
-    parts.push(summaryAnchors.trim());
+    parts.push(truncateSummaryEvidenceText(
+      summaryAnchors.trim(),
+      Math.max(256, Math.floor(COMPACT_SUMMARY_ANCHOR_MAX_TOTAL_CHARS * contentScale)),
+    ));
   }
   parts.push("</internal-compaction-control>");
   return parts.join("\n\n");
+}
+
+function fitSummaryMessagesToTokenBudget(
+  messages: CanonicalMessage[],
+  tokenBudget: number,
+  estimate: (messages: CanonicalMessage[]) => number,
+): CanonicalMessage[] {
+  let candidate = stripSummaryOrphanedToolPairs(messages);
+  if (estimate(candidate) <= tokenBudget) return candidate;
+
+  while (candidate.length > 1 && estimate(candidate) > tokenBudget) {
+    const next = stripSummaryOrphanedToolPairs(candidate.slice(1));
+    if (next.length === 0 || next.length === candidate.length) break;
+    candidate = next;
+  }
+
+  for (let attempt = 0; attempt < 12 && estimate(candidate) > tokenBudget; attempt += 1) {
+    const scale = Math.max(0.05, COMPACT_SUMMARY_RETRY_INPUT_RATIO ** (attempt + 1));
+    const next = condenseSummaryMessages(candidate, scale);
+    if (estimate(next) >= estimate(candidate)) break;
+    candidate = next;
+  }
+  if (estimate(candidate) > tokenBudget) {
+    throw new Error("Summary input is too large for the remaining token budget");
+  }
+  return candidate;
+}
+
+function stripSummaryOrphanedToolPairs(messages: CanonicalMessage[]): CanonicalMessage[] {
+  const withoutResults = stripUnpairedToolResults(messages, collectToolCallIds(messages));
+  return stripUnpairedToolCalls(withoutResults, collectToolResultIds(withoutResults));
+}
+
+function condenseSummaryMessages(messages: CanonicalMessage[], scale: number): CanonicalMessage[] {
+  return messages.map((message) => ({
+    ...message,
+    content: message.content.map((block): CanonicalContentBlock => {
+      if (block.type === "text") {
+        return { ...block, text: shrinkSummaryText(block.text, scale) };
+      }
+      if (block.type === "thinking") {
+        return {
+          ...block,
+          text: shrinkSummaryText(block.text, scale),
+          ...(block.reasoningContent !== undefined
+            ? { reasoningContent: shrinkSummaryText(block.reasoningContent, scale) }
+            : {}),
+        };
+      }
+      if (block.type === "tool_call") {
+        return pruneToolCallForSummary(
+          block,
+          Math.max(64, Math.floor(COMPACT_SUMMARY_INPUT_TOOL_CALL_ARG_MAX_CHARS * scale)),
+        );
+      }
+      if (block.type === "tool_result") {
+        return {
+          ...block,
+          content: [{
+            type: "text",
+            text: shrinkSummaryText(flattenToolResultContentText(block.content), scale),
+          }],
+        };
+      }
+      if (block.type === "tool_result_reference") {
+        return { ...block, preview: shrinkSummaryText(block.preview, scale) };
+      }
+      return block;
+    }),
+  }));
+}
+
+function shrinkSummaryText(text: string, scale: number): string {
+  if (text.length <= 64) return text;
+  return truncateSummaryEvidenceText(text, Math.max(64, Math.floor(text.length * scale)));
+}
+
+function truncateSummaryEvidenceText(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  const marker = "\n...[summary input truncated]...\n";
+  const available = Math.max(1, maxChars - marker.length);
+  const headChars = Math.ceil(available * 0.6);
+  const tailChars = Math.max(0, available - headChars);
+  return `${text.slice(0, headChars)}${marker}${tailChars > 0 ? text.slice(-tailChars) : ""}`;
+}
+
+function isSummaryInputRetryableError(error: Error): boolean {
+  return /truncated at the token limit|prompt[_ ]too[_ ]long|context[_ ]length|context overflow|maximum context|too many tokens|input.{0,40}too long/i
+    .test(error.message);
 }
 
 function projectMessagesForSummary(messages: CanonicalMessage[]): CanonicalMessage[] {
@@ -928,12 +1211,15 @@ function projectOversizedRetainedToolResults(
   return changed ? projected : messages;
 }
 
-function pruneToolCallForSummary(block: CanonicalToolCallBlock): CanonicalToolCallBlock {
+function pruneToolCallForSummary(
+  block: CanonicalToolCallBlock,
+  maxChars = COMPACT_SUMMARY_INPUT_TOOL_CALL_ARG_MAX_CHARS,
+): CanonicalToolCallBlock {
   return {
     type: "tool_call",
     id: block.id,
     name: block.name,
-    input: pruneSummaryInputValue(block.input),
+    input: pruneSummaryInputValue(block.input, maxChars),
   };
 }
 
@@ -1001,16 +1287,21 @@ function pruneToolResultReferenceForSummary(
   };
 }
 
-function pruneSummaryInputValue(value: unknown): unknown {
-  return pruneSummaryInputValueInner(value, 0, new WeakSet<object>());
+function pruneSummaryInputValue(value: unknown, maxChars: number): unknown {
+  return pruneSummaryInputValueInner(value, 0, new WeakSet<object>(), maxChars);
 }
 
-function pruneSummaryInputValueInner(value: unknown, depth: number, seen: WeakSet<object>): unknown {
+function pruneSummaryInputValueInner(
+  value: unknown,
+  depth: number,
+  seen: WeakSet<object>,
+  maxChars: number,
+): unknown {
   if (value === null || value === undefined) {
     return value;
   }
   if (typeof value === "string") {
-    return truncateForSummaryInput(value, COMPACT_SUMMARY_INPUT_TOOL_CALL_ARG_MAX_CHARS);
+    return truncateForSummaryInput(value, maxChars);
   }
   if (typeof value === "number" || typeof value === "boolean") {
     return value;
@@ -1029,7 +1320,7 @@ function pruneSummaryInputValueInner(value: unknown, depth: number, seen: WeakSe
       return "[Circular]";
     }
     seen.add(value);
-    return value.slice(0, 20).map((item) => pruneSummaryInputValueInner(item, depth + 1, seen));
+    return value.slice(0, 20).map((item) => pruneSummaryInputValueInner(item, depth + 1, seen, maxChars));
   }
   if (isPlainObject(value)) {
     if (seen.has(value)) {
@@ -1042,7 +1333,7 @@ function pruneSummaryInputValueInner(value: unknown, depth: number, seen: WeakSe
       if (count >= 20) {
         break;
       }
-      out[key] = pruneSummaryInputValueInner(child, depth + 1, seen);
+      out[key] = pruneSummaryInputValueInner(child, depth + 1, seen, maxChars);
       count += 1;
     }
     return out;

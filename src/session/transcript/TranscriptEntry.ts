@@ -106,8 +106,15 @@ export type AgentControlBoundaryTranscriptEntry = AgentTranscriptEntryBase & {
       }
     | {
         kind: "compact";
+        subtype: "emergency_truncate";
+        compactMetadata: CompactBoundaryMetadata;
+        snapshot?: { version: 1; messages: CanonicalMessage[] };
+      }
+    | {
+        kind: "compact";
         subtype: "microcompact_boundary";
         microCompactMetadata: MicroCompactBoundaryMetadata;
+        snapshot?: undefined;
       }
     | {
         kind: "restore";

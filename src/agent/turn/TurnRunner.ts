@@ -300,7 +300,8 @@ export class TurnRunner {
             await this.transcript.recordAgentStatusMessage?.(options.sessionId, options.turnId, status);
           },
           onCompactPersisted: async ({ boundary, messages: compactMessages }) => {
-            if (boundary.kind !== "compact" || boundary.subtype !== "compact_boundary") return;
+            if (boundary.kind !== "compact" ||
+                (boundary.subtype !== "compact_boundary" && boundary.subtype !== "emergency_truncate")) return;
             await this.transcript.recordControlBoundary?.(options.sessionId, options.turnId, {
               ...boundary,
               snapshot: { version: 1, messages: compactMessages },

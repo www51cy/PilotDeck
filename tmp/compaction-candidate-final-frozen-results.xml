@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="T1: 80 percent warning runs full summary before the blocking tier" time="1.045826" classname="test"/>
+	<testcase name="T2: micro pruning below 80 percent finishes without a summary call" time="0.044935" classname="test"/>
+	<testcase name="E1: failed summaries expose real emergency truncation without a fake checkpoint" time="0.018434" classname="test"/>
+	<testcase name="B1: first summary request enforces a non-vacuous total input budget" time="1.163198" classname="test"/>
+	<testcase name="R1: output length retries three times with strictly smaller inputs and rejects truncation" time="0.039973" classname="test"/>
+	<testcase name="R2: provider prompt_too_long retries with smaller input and can recover" time="0.033754" classname="test"/>
+	<testcase name="F1: three failures open a circuit and permit only one half-open probe" time="0.028931" classname="test"/>
+	<testcase name="F2: manual compaction is an explicit recovery exit from the circuit" time="0.017361" classname="test"/>
+	<testcase name="C1: the first failure retains the 60 second cooldown" time="0.010836" classname="test"/>
+	<testcase name="E2: AgentLoop persists an emergency_truncate snapshot without summary success" time="0.011530" classname="test"/>
+	<testcase name="E3: TurnRunner and JSONL writer durably flush a complete emergency snapshot" time="0.077434" classname="test"/>
+	<testcase name="E4: replay accepts only complete emergency snapshots and retains raw history" time="0.001461" classname="test"/>
+	<testcase name="E4-control: incomplete emergency snapshots conservatively retain original history" time="0.000483" classname="test"/>
+	<!-- tests 13 -->
+	<!-- suites 0 -->
+	<!-- pass 13 -->
+	<!-- fail 0 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 1911.036977 -->
+</testsuites>

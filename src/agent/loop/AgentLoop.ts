@@ -2293,26 +2293,29 @@ export class AgentLoop {
     input: AgentLoopInput,
     compact: Extract<Awaited<ReturnType<NonNullable<AgentContextRuntime["tryAutoCompact"]>>>, { type: "compacted" }>,
   ): Promise<void> {
-    if (!input.onCompactPersisted || !compact.result) {
+    const result = compact.result;
+    const emergency = compact.emergencyTruncation;
+    if (!input.onCompactPersisted || (!result && !emergency)) {
       return;
     }
+    const compactionId = result?.compactionId ?? randomUUID();
     const boundary: AgentControlBoundaryTranscriptEntry["boundary"] = {
       kind: "compact",
-      subtype: "compact_boundary",
+      subtype: emergency ? "emergency_truncate" : "compact_boundary",
       compactMetadata: {
-        compactionId: compact.result.compactionId,
-        trigger: compact.result.trigger,
-        preTokens: compact.result.preTokens,
-        postTokens: compact.snapshot.tokens,
-        messagesSummarized: compact.result.messagesSummarized,
-        ...(compact.result.targetPostTokens !== undefined ? { targetTokens: compact.result.targetPostTokens } : {}),
-        summaryGenerated: compactionSummaryGenerated(compact.result),
-        checkpointMerged: compact.result.checkpointMerged ?? compact.result.cacheReset === true,
+        compactionId,
+        trigger: emergency ? "reactive" : result!.trigger,
+        preTokens: emergency?.preTokens ?? result!.preTokens,
+        postTokens: emergency?.postTokens ?? compact.snapshot.tokens,
+        messagesSummarized: emergency ? (result?.messagesSummarized ?? 0) : result!.messagesSummarized,
+        ...(result?.targetPostTokens !== undefined ? { targetTokens: result.targetPostTokens } : {}),
+        summaryGenerated: result ? compactionSummaryGenerated(result) : false,
+        ...(result ? { checkpointMerged: result.checkpointMerged ?? result.cacheReset === true } : {}),
         finalRatio: compact.snapshot.ratio,
         extra: {
           tier: compact.tier,
-          summarySucceeded: compactionSummarySucceeded(compact.result),
-          ...(compact.result.cacheReset ? { cacheReset: true } : {}),
+          summarySucceeded: result ? compactionSummarySucceeded(result) : false,
+          ...(result?.cacheReset ? { cacheReset: true } : {}),
           ...(compact.error
             ? {
                 finalBudgetTokens: compact.snapshot.maxContextTokens,
@@ -2326,7 +2329,7 @@ export class AgentLoop {
     };
     await Promise.resolve(input.onCompactPersisted({
       boundary,
-      messages: markCompactReplacementMessages(compact.messages, compact.result.compactionId),
+      messages: markCompactReplacementMessages(compact.messages, compactionId),
     })).catch(() => {});
   }
 

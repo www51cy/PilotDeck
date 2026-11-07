@@ -5,7 +5,8 @@ import type { AgentTranscriptEntry } from "./TranscriptEntry.js";
 export function readCompactSnapshot(entry: AgentTranscriptEntry): CanonicalMessage[] | undefined {
   if (entry.type !== "control_boundary") return undefined;
   const boundary = entry.boundary;
-  if (!isRecord(boundary) || boundary.kind !== "compact" || boundary.subtype !== "compact_boundary") {
+  if (!isRecord(boundary) || boundary.kind !== "compact" ||
+      (boundary.subtype !== "compact_boundary" && boundary.subtype !== "emergency_truncate")) {
     return undefined;
   }
   const snapshot: unknown = boundary.snapshot;

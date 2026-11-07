@@ -1,0 +1,240 @@
+(node:12794) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[context:auto-compact] policy_trigger {"sessionId":"real-compaction-1794020954210","turnId":"real-compaction-turn","reason":"blocking_threshold","snapshot":{"tokens":761027,"estimateSource":"estimator","localEstimateTokens":761027,"totalContextTokens":262144,"maxContextTokens":229376,"effectiveContextTokens":229376,"maxOutputTokens":32768,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":3.317814418247768,"source":"local","exact":false,"reservedOutputTokens":32768},"messages":542,"reservedOutputTokens":32768}
+[context:auto-compact] pre_summary_prune {"sessionId":"real-compaction-1794020954210","turnId":"real-compaction-turn","rewritten":266,"rewrittenBytes":3107536,"snapshot":{"tokens":224989,"estimateSource":"estimator","localEstimateTokens":224989,"totalContextTokens":262144,"maxContextTokens":229376,"effectiveContextTokens":229376,"maxOutputTokens":32768,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.9808741978236607,"source":"local","exact":false,"reservedOutputTokens":32768}}
+[context:auto-compact] full_compaction_started {"sessionId":"real-compaction-1794020954210","turnId":"real-compaction-turn","messages":542,"snapshot":{"tokens":224989,"estimateSource":"estimator","localEstimateTokens":224989,"totalContextTokens":262144,"maxContextTokens":229376,"effectiveContextTokens":229376,"maxOutputTokens":32768,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":0.9808741978236607,"source":"local","exact":false,"reservedOutputTokens":32768}}
+[context:auto-compact] full_compaction_completed {"sessionId":"real-compaction-1794020954210","turnId":"real-compaction-turn","snapshot":{"tokens":73113,"estimateSource":"estimator","localEstimateTokens":73113,"totalContextTokens":262144,"maxContextTokens":229376,"effectiveContextTokens":229376,"maxOutputTokens":32768,"warningRatio":0.8,"blockingRatio":0.9,"state":"ok","ratio":0.3187473842075893,"source":"local","exact":false,"reservedOutputTokens":32768},"summarySucceeded":true,"summaryGenerated":true,"checkpointMerged":false,"targetPostTokens":137625,"preTokens":224491,"postTokens":72615}
+[context:auto-compact] policy_trigger {"sessionId":"real-compaction-1794020954210","turnId":"real-compaction-turn-2","reason":"blocking_threshold","snapshot":{"tokens":845949,"estimateSource":"usage","usageTokens":845949,"localEstimateTokens":833693,"calibrationActualInputTokens":85369,"calibrationEstimatedInputTokens":73113,"totalContextTokens":262144,"maxContextTokens":229376,"effectiveContextTokens":229376,"maxOutputTokens":32768,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":3.688044956752232,"source":"calibrated","exact":false,"reservedOutputTokens":32768},"messages":1026,"reservedOutputTokens":32768}
+[context:auto-compact] pre_summary_prune {"sessionId":"real-compaction-1794020954210","turnId":"real-compaction-turn-2","rewritten":266,"rewrittenBytes":3107536,"snapshot":{"tokens":309911,"estimateSource":"usage","usageTokens":309911,"localEstimateTokens":297655,"calibrationActualInputTokens":85369,"calibrationEstimatedInputTokens":73113,"totalContextTokens":262144,"maxContextTokens":229376,"effectiveContextTokens":229376,"maxOutputTokens":32768,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.351104736328125,"source":"calibrated","exact":false,"reservedOutputTokens":32768}}
+[context:auto-compact] full_compaction_started {"sessionId":"real-compaction-1794020954210","turnId":"real-compaction-turn-2","messages":1026,"snapshot":{"tokens":309911,"estimateSource":"usage","usageTokens":309911,"localEstimateTokens":297655,"calibrationActualInputTokens":85369,"calibrationEstimatedInputTokens":73113,"totalContextTokens":262144,"maxContextTokens":229376,"effectiveContextTokens":229376,"maxOutputTokens":32768,"warningRatio":0.8,"blockingRatio":0.9,"state":"blocking","ratio":1.351104736328125,"source":"calibrated","exact":false,"reservedOutputTokens":32768}}
+[context:auto-compact] full_compaction_completed {"sessionId":"real-compaction-1794020954210","turnId":"real-compaction-turn-2","snapshot":{"tokens":85434,"estimateSource":"usage","usageTokens":85434,"localEstimateTokens":73178,"calibrationActualInputTokens":85369,"calibrationEstimatedInputTokens":73113,"totalContextTokens":262144,"maxContextTokens":229376,"effectiveContextTokens":229376,"maxOutputTokens":32768,"warningRatio":0.8,"blockingRatio":0.9,"state":"ok","ratio":0.37246268136160715,"source":"calibrated","exact":false,"reservedOutputTokens":32768},"summarySucceeded":true,"summaryGenerated":true,"checkpointMerged":true,"targetPostTokens":137625,"preTokens":297157,"postTokens":72680}
+{
+  "provider": "volc_ark",
+  "model": "ark-code-latest",
+  "sourceFiles": 270,
+  "seededMessages": 541,
+  "limits": {
+    "totalContextTokens": 262144,
+    "maxOutputTokens": 32768,
+    "effectiveInputTokens": 229376,
+    "targetTokens": 137625,
+    "summaryMaxOutputTokens": 4000
+  },
+  "initial": {
+    "tokens": 760506,
+    "totalContextTokens": 262144,
+    "effectiveContextTokens": 229376,
+    "reservedOutputTokens": 32768,
+    "ratio": 3.3155430385044644,
+    "source": "local",
+    "exact": false
+  },
+  "afterMicroProjection": {
+    "tokens": 224491,
+    "totalContextTokens": 262144,
+    "effectiveContextTokens": 229376,
+    "reservedOutputTokens": 32768,
+    "ratio": 0.9787030901227679,
+    "source": "local",
+    "exact": false
+  },
+  "summaryCalls": 2,
+  "summaryUsage": {
+    "inputTokens": 27785,
+    "outputTokens": 1191,
+    "cacheReadTokens": 83768,
+    "cacheWriteTokens": 0,
+    "totalTokens": 112744
+  },
+  "summaryInputUsageTokens": 111553,
+  "providerInputTokens": {
+    "first": [
+      85369
+    ],
+    "second": [
+      85439
+    ]
+  },
+  "originalTranscript": {
+    "bytes": 3382822,
+    "sha256": "d2bc111a9ce9b3252a0be532ae2e134f46ff8617e704b7e483f84756e8fa14ef",
+    "prefixPreserved": true,
+    "finalBytes": 7580901
+  },
+  "compactMetadata": {
+    "compactionId": "1631bd7c-e098-43d4-9137-8ba9d5370e0a",
+    "trigger": "auto",
+    "preTokens": 297157,
+    "postTokens": 85434,
+    "messagesSummarized": 544,
+    "targetTokens": 137625,
+    "summaryGenerated": true,
+    "checkpointMerged": true,
+    "finalRatio": 0.37246268136160715,
+    "extra": {
+      "tier": "full",
+      "summarySucceeded": true,
+      "cacheReset": true
+    },
+    "timeline": {
+      "version": 1,
+      "turnId": "real-compaction-turn-2",
+      "id": "compact:1631bd7c-e098-43d4-9137-8ba9d5370e0a",
+      "order": 0,
+      "revision": 1
+    }
+  },
+  "compactEvents": [
+    {
+      "type": "compact_started",
+      "sessionId": "real-compaction-1794020954210",
+      "turnId": "real-compaction-turn",
+      "compactionId": "bbda26cf-9f7b-4e9e-8ac7-56383e61d94e",
+      "trigger": "auto",
+      "preTokens": 224491
+    },
+    {
+      "type": "compact_completed",
+      "sessionId": "real-compaction-1794020954210",
+      "turnId": "real-compaction-turn",
+      "compactionId": "bbda26cf-9f7b-4e9e-8ac7-56383e61d94e",
+      "trigger": "auto",
+      "status": "success",
+      "preTokens": 224491,
+      "postTokens": 72615,
+      "messagesSummarized": 62,
+      "cacheReset": false,
+      "cacheReadTokens": 26729,
+      "cacheWriteTokens": 0
+    },
+    {
+      "type": "compact_started",
+      "sessionId": "real-compaction-1794020954210",
+      "turnId": "real-compaction-turn-2",
+      "compactionId": "1631bd7c-e098-43d4-9137-8ba9d5370e0a",
+      "trigger": "auto",
+      "preTokens": 297157
+    },
+    {
+      "type": "compact_completed",
+      "sessionId": "real-compaction-1794020954210",
+      "turnId": "real-compaction-turn-2",
+      "compactionId": "1631bd7c-e098-43d4-9137-8ba9d5370e0a",
+      "trigger": "auto",
+      "status": "success",
+      "preTokens": 297157,
+      "postTokens": 72680,
+      "messagesSummarized": 544,
+      "cacheReset": true,
+      "cacheReadTokens": 83768,
+      "cacheWriteTokens": 0
+    }
+  ],
+  "agentEventTypes": [
+    "session_started",
+    "setup_completed",
+    "turn_started",
+    "input_accepted",
+    "user_prompt_submitted",
+    "turn_continued",
+    "model_request_started",
+    "context_budget",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "assistant_message",
+    "stop_requested",
+    "turn_completed",
+    "session_ended"
+  ],
+  "secondAgentEventTypes": [
+    "session_started",
+    "setup_completed",
+    "turn_started",
+    "input_accepted",
+    "user_prompt_submitted",
+    "instructions_loaded",
+    "turn_continued",
+    "model_request_started",
+    "context_budget",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "model_event",
+    "assistant_message",
+    "stop_requested",
+    "turn_completed",
+    "session_ended"
+  ],
+  "tokenCountSources": [
+    "calibrated"
+  ],
+  "replayMessages": 483,
+  "replacementMessages": 482,
+  "finalTextPreview": "The second repository inspection is complete.",
+  "transcriptPath": "/root/pilotdeck/tmp/pilotdeck-real-compaction-e2e-aCEXGv/projects/root-pilotdeck/chats/real-compaction-1794020954210.jsonl"
+}
+report=/root/pilotdeck/tmp/pilotdeck-real-compaction-e2e-aCEXGv/real-compaction-report.json
