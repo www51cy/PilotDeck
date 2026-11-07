@@ -50,6 +50,14 @@ const MAX_RECONNECT_MS = 30000;
 const BACKOFF_FACTOR = 2;
 const MAX_QUEUED_MESSAGES = 100;
 
+/** How often the browser probes the link with an application-level ping. */
+export const PING_INTERVAL_MS = 30_000;
+/**
+ * How long a probe may stay unanswered before the socket is treated as
+ * half-open. Must stay below {@link PING_INTERVAL_MS} so probes never overlap.
+ */
+export const PING_ACK_TIMEOUT_MS = 15_000;
+
 export function getQueuedMessageKey(message: any): string | null {
   if (message?.type === 'check-session-status' && typeof message.sessionId === 'string' && message.sessionId.trim()) {
     return `check-session-status:${message.sessionId.trim()}`;
@@ -92,6 +100,10 @@ const useWebSocketProviderState = (): WebSocketContextType => {
   });
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptRef = useRef(0);
+  const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const ackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingPingIdRef = useRef<string | null>(null);
+  const pingSeqRef = useRef(0);
   const queuedMessagesRef = useRef<any[]>([]);
   const subscribersRef = useRef<Set<WSSubscriber>>(new Set());
   const { token } = useAuth();
@@ -113,6 +125,40 @@ const useWebSocketProviderState = (): WebSocketContextType => {
 
         const websocket = new WebSocket(wsUrl);
 
+        const clearHeartbeat = () => {
+          if (pingIntervalRef.current) {
+            clearInterval(pingIntervalRef.current);
+            pingIntervalRef.current = null;
+          }
+          if (ackTimeoutRef.current) {
+            clearTimeout(ackTimeoutRef.current);
+            ackTimeoutRef.current = null;
+          }
+          pendingPingIdRef.current = null;
+        };
+
+        // A connection settles exactly once: either the browser reports `close`,
+        // or we detect a half-open link ourselves. Both must schedule the same
+        // single backoff reconnect.
+        let settled = false;
+        const settle = () => {
+          if (settled || connectIdRef.current !== id) return;
+          settled = true;
+          clearHeartbeat();
+          setIsConnected(false);
+          wsRef.current = null;
+          const attempt = ++reconnectAttemptRef.current;
+          const delay = Math.min(
+            INITIAL_RECONNECT_MS * Math.pow(BACKOFF_FACTOR, attempt - 1),
+            MAX_RECONNECT_MS,
+          );
+          setReconnectInfo({ attempt, nextRetryMs: delay, status: 'disconnected' });
+          reconnectTimeoutRef.current = setTimeout(() => {
+            if (unmountedRef.current || connectIdRef.current !== id) return;
+            connect();
+          }, delay);
+        };
+
         websocket.onopen = () => {
           if (connectIdRef.current !== id) { websocket.close(); return; }
           setIsConnected(true);
@@ -125,12 +171,28 @@ const useWebSocketProviderState = (): WebSocketContextType => {
             websocket.send(JSON.stringify(withClientRequestContext(message)));
           }
 
-          const pingInterval = setInterval(() => {
-            if (websocket.readyState === WebSocket.OPEN) {
-              websocket.send(JSON.stringify({ type: 'ping' }));
+          clearHeartbeat();
+          pingIntervalRef.current = setInterval(() => {
+            if (websocket.readyState !== WebSocket.OPEN) return;
+            const requestId = `hb-${++pingSeqRef.current}`;
+            pendingPingIdRef.current = requestId;
+            try {
+              websocket.send(JSON.stringify({ type: 'ping', requestId, timestamp: Date.now() }));
+            } catch {
+              pendingPingIdRef.current = null;
+              return;
             }
-          }, 30_000);
-          websocket.addEventListener('close', () => clearInterval(pingInterval));
+            // A socket can still read OPEN while the peer is gone (frozen tab,
+            // half-open TCP). No `close` event will arrive in that case, so an
+            // unanswered probe is the only signal that the link is dead.
+            if (ackTimeoutRef.current) clearTimeout(ackTimeoutRef.current);
+            ackTimeoutRef.current = setTimeout(() => {
+              ackTimeoutRef.current = null;
+              if (settled || connectIdRef.current !== id) return;
+              try { websocket.close(); } catch { /* already closing */ }
+              settle();
+            }, PING_ACK_TIMEOUT_MS);
+          }, PING_INTERVAL_MS);
 
           if (hasConnectedRef.current) {
             globalModelSelectionStore.invalidate();
@@ -150,6 +212,20 @@ const useWebSocketProviderState = (): WebSocketContextType => {
           if (connectIdRef.current !== id) return;
           try {
             const data = JSON.parse(event.data);
+            if (data?.type === 'pong') {
+              // A pong proves the link is alive. It says nothing about business
+              // state, so it is not dispatched to subscribers — otherwise every
+              // heartbeat would churn React state and look like a data message.
+              const pendingId = pendingPingIdRef.current;
+              if (pendingId === null || data.requestId === undefined || data.requestId === pendingId) {
+                pendingPingIdRef.current = null;
+                if (ackTimeoutRef.current) {
+                  clearTimeout(ackTimeoutRef.current);
+                  ackTimeoutRef.current = null;
+                }
+              }
+              return;
+            }
             // Invalidate even while the composer is unmounted (for example in settings).
             if (data?.type === 'config:reloaded') globalModelSelectionStore.invalidate();
             globalModelSelectionStore.receiveMessage(data);
@@ -171,18 +247,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
 
         websocket.onclose = () => {
           if (connectIdRef.current !== id) return;
-          setIsConnected(false);
-          wsRef.current = null;
-          const attempt = ++reconnectAttemptRef.current;
-          const delay = Math.min(
-            INITIAL_RECONNECT_MS * Math.pow(BACKOFF_FACTOR, attempt - 1),
-            MAX_RECONNECT_MS,
-          );
-          setReconnectInfo({ attempt, nextRetryMs: delay, status: 'disconnected' });
-          reconnectTimeoutRef.current = setTimeout(() => {
-            if (unmountedRef.current || connectIdRef.current !== id) return;
-            connect();
-          }, delay);
+          settle();
         };
 
         websocket.onerror = (error) => {
@@ -202,6 +267,15 @@ const useWebSocketProviderState = (): WebSocketContextType => {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
       }
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+        pingIntervalRef.current = null;
+      }
+      if (ackTimeoutRef.current) {
+        clearTimeout(ackTimeoutRef.current);
+        ackTimeoutRef.current = null;
+      }
+      pendingPingIdRef.current = null;
       const ws = wsRef.current;
       if (ws) {
         ws.onopen = null;
