@@ -826,14 +826,11 @@ export function buildRenderableMessageItems(
       const turnStartItem = itemsByIndex.get(turn.start);
       if (turnStartMessage?.type === 'user' && turnStartItem) {
         turnStartItem.afterRunAttachment = runAttachment;
-      } else {
-        const firstVisibleItem = items.find((item) =>
-          item.originalIndex >= turn.start && item.originalIndex < turn.end,
-        );
-        if (firstVisibleItem) {
-          firstVisibleItem.beforeRunAttachment = runAttachment;
-        }
       }
+      // If this turn's opening user message is outside the loaded window (a
+      // page boundary cut the turn), drop the run attachment instead of
+      // pinning it above unrelated messages. An orphan "processed" block at
+      // the top of the window reads as if it belonged to the wrong turn.
     }
 
     const segments = collectCompletedProcessSegments(messages, turn);

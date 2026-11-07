@@ -323,6 +323,11 @@ export function useChatSessionState({
   const [isLoadingMoreMessages] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [totalMessages, setTotalMessages] = useState(0);
+  // Number of raw server message records currently loaded into the window.
+  // `totalMessages` is also a count of raw records, so the two share a unit.
+  // `chatMessages.length` is NOT comparable to either: it is the merged
+  // UI-message count (one turn renders as one message).
+  const [loadedMessageCount, setLoadedMessageCount] = useState(0);
   const [canAbortSession, setCanAbortSession] = useState(false);
   const [isAborting, setIsAborting] = useState(false);
   const [tokenBudget, setTokenBudget] = useState<Record<string, unknown> | null>(null);
@@ -592,7 +597,10 @@ export function useChatSessionState({
         if (!slot || slot.serverMessages.length === 0 || activeScrollKeyRef.current !== requestScrollKey) return false;
         setHasMoreMessages(slot.hasMore);
         setTotalMessages(slot.total);
-        setVisibleMessageCount((prev) => prev + MESSAGES_PER_PAGE);
+        setLoadedMessageCount(slot.serverMessages.length);
+        // Loading earlier pages is an explicit user action: render everything
+        // that is loaded instead of only a fixed count of records.
+        setVisibleMessageCount(Infinity);
         return true;
       } finally {
         isLoadingMoreRef.current = false;
@@ -742,6 +750,7 @@ export function useChatSessionState({
       messagesOffsetRef.current = 0;
       setHasMoreMessages(false);
       setTotalMessages(0);
+      setLoadedMessageCount(0);
       setTokenBudget(null);
       lastLoadedSessionKeyRef.current = null;
       return;
@@ -800,6 +809,7 @@ export function useChatSessionState({
     messagesOffsetRef.current = 0;
     setHasMoreMessages(false);
     setTotalMessages(0);
+    setLoadedMessageCount(0);
     setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
     setAllMessagesLoaded(false);
     allMessagesLoadedRef.current = false;
@@ -849,6 +859,7 @@ export function useChatSessionState({
       if (slot) {
         setHasMoreMessages(slot.hasMore);
         setTotalMessages(slot.total);
+        setLoadedMessageCount(slot.serverMessages.length);
         if (slot.tokenUsage) setTokenBudget(slot.tokenUsage as Record<string, unknown>);
         setSessionLoadError(slot.status === 'error'
           ? slot.lastError || 'Unable to load conversation messages.'
@@ -970,6 +981,7 @@ export function useChatSessionState({
             if (slot) {
               setHasMoreMessages(false);
               setTotalMessages(slot.total);
+              setLoadedMessageCount(slot.serverMessages.length);
               messagesOffsetRef.current = slot.total;
               setVisibleMessageCount(Infinity);
               setAllMessagesLoaded(true);
@@ -1193,6 +1205,7 @@ export function useChatSessionState({
       if (slot) {
         setHasMoreMessages(false);
         setTotalMessages(slot.total);
+        setLoadedMessageCount(slot.serverMessages.length);
         messagesOffsetRef.current = slot.total;
         setVisibleMessageCount(Infinity);
         setAllMessagesLoaded(true);
@@ -1246,6 +1259,7 @@ export function useChatSessionState({
     isLoadingMoreMessages,
     hasMoreMessages,
     totalMessages,
+    loadedMessageCount,
     canAbortSession,
     setCanAbortSession,
     isAborting,

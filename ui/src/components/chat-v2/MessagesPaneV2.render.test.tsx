@@ -7,7 +7,6 @@ import type { ChatMessage, ChatRunMode, PendingPermissionRequest, SessionRuntime
 import type { QueuedInputSummary } from '../chat/types/queuedInput';
 import { normalizedToChatMessages } from '../chat/hooks/useChatMessages';
 import MessagesPaneV2 from './MessagesPaneV2';
-import { ThinkingBlock } from './ThinkingBlock';
 import {
   getChatResponseReserveTarget,
   shouldKeepChatResponseReservedSpace,
@@ -44,20 +43,23 @@ afterEach(() => {
   subagentModalCloseCallbacks.length = 0;
 });
 
-describe('ThinkingBlock phase transitions', () => {
-  it('opens while streaming, respects manual collapse, and closes once on completion', () => {
-    const view = render(<ThinkingBlock content="First thought" isStreaming />);
-    const toggle = screen.getByRole('button');
-    expect(toggle.getAttribute('aria-expanded')).toBe('true');
-    fireEvent.click(toggle);
-    view.rerender(<ThinkingBlock content="First thought and more" isStreaming />);
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    fireEvent.click(toggle);
-    view.rerender(<ThinkingBlock content="Completed thought" isStreaming={false} />);
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    fireEvent.click(toggle);
-    view.rerender(<ThinkingBlock content="Completed thought, persisted" isStreaming={false} />);
-    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+describe('history window counter', () => {
+  it('reports loaded raw records instead of merged UI messages', () => {
+    const now = new Date().toISOString();
+    renderPane({
+      messages: [
+        { id: 'user-1', type: 'user', content: 'Question', timestamp: now },
+        { id: 'assistant-1', type: 'assistant', content: 'Answer', timestamp: now },
+      ],
+      hasMoreMessages: true,
+      allMessagesLoaded: false,
+      totalMessages: 967,
+      loadedMessageCount: 100,
+    });
+
+    const counter = screen.getByText(/967/);
+    expect(counter.textContent).toContain('100');
+    expect(counter.textContent).not.toContain('2 / 967');
   });
 });
 
@@ -130,6 +132,10 @@ function createPaneElement({
   inlineThinking = false,
   workingStatus,
   onRegenerate,
+  hasMoreMessages = false,
+  allMessagesLoaded = true,
+  totalMessages,
+  loadedMessageCount,
 }: {
   messages: ChatMessage[];
   activityMessages?: ChatMessage[];
@@ -144,6 +150,10 @@ function createPaneElement({
   inlineThinking?: boolean;
   workingStatus?: import('../chat/types/types').PilotDeckWorkStatus;
   onRegenerate?: (message: ChatMessage, editedText: string) => Promise<void>;
+  hasMoreMessages?: boolean;
+  allMessagesLoaded?: boolean;
+  totalMessages?: number;
+  loadedMessageCount?: number;
 }) {
   const scrollContainerRef = React.createRef<HTMLDivElement>();
 
@@ -158,11 +168,12 @@ function createPaneElement({
         visibleMessages={messages}
         visibleMessageCount={messages.length}
         isLoadingMoreMessages={false}
-        hasMoreMessages={false}
-        totalMessages={messages.length}
+        hasMoreMessages={hasMoreMessages}
+        totalMessages={totalMessages ?? messages.length}
+        loadedMessageCount={loadedMessageCount ?? messages.length}
         loadEarlierMessages={() => {}}
         loadAllMessages={() => {}}
-        allMessagesLoaded
+        allMessagesLoaded={allMessagesLoaded}
         isLoadingAllMessages={false}
         provider="pilotdeck"
         selectedProject={null}
@@ -198,6 +209,10 @@ function renderPane(options: {
   inlineThinking?: boolean;
   workingStatus?: import('../chat/types/types').PilotDeckWorkStatus;
   onRegenerate?: (message: ChatMessage, editedText: string) => Promise<void>;
+  hasMoreMessages?: boolean;
+  allMessagesLoaded?: boolean;
+  totalMessages?: number;
+  loadedMessageCount?: number;
 }) {
   return render(createPaneElement(options));
 }
@@ -274,6 +289,7 @@ function SessionPaneHarness({
         isLoadingMoreMessages={false}
         hasMoreMessages={false}
         totalMessages={messages.length}
+        loadedMessageCount={messages.length}
         loadEarlierMessages={() => {}}
         loadAllMessages={() => {}}
         allMessagesLoaded

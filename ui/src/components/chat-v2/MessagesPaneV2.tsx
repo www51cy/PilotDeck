@@ -64,6 +64,8 @@ type MessagesPaneV2Props = {
   isLoadingMoreMessages: boolean;
   hasMoreMessages: boolean;
   totalMessages: number;
+  /** Raw server records loaded so far; same unit as `totalMessages`. */
+  loadedMessageCount: number;
   loadEarlierMessages: () => void;
   loadAllMessages: () => void;
   allMessagesLoaded: boolean;
@@ -290,7 +292,11 @@ function MeasuredMessageItem({
   return (
     <div
       ref={itemRef}
-      className={`chat-message ${isLast || flushBottomSpacing ? '' : compactBottomSpacing ? 'pb-2' : 'pb-4'}`}
+      className={`chat-message ${
+        message.type === 'user'
+          ? 'rounded-xl bg-sky-50/70 px-4 py-3 ring-1 ring-sky-100/80 dark:bg-sky-950/25 dark:ring-sky-900/40 '
+          : ''
+      }${isLast || flushBottomSpacing ? '' : compactBottomSpacing ? 'pb-2' : 'pb-4'}`}
       data-message-key={itemKey}
       data-message-timestamp={message.timestamp ? String(message.timestamp) : undefined}
     >
@@ -351,6 +357,7 @@ function MessagesPaneV2({
   isLoadingMoreMessages,
   hasMoreMessages,
   totalMessages,
+  loadedMessageCount,
   loadEarlierMessages,
   loadAllMessages,
   allMessagesLoaded,
@@ -1393,9 +1400,9 @@ function MessagesPaneV2({
             <div className="mb-8 flex items-center justify-between border-b border-neutral-200 pb-3 text-[12px] text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
               <span>
                 {t('session.messages.showingOf', {
-                  shown: chatMessages.length,
+                  shown: loadedMessageCount,
                   total: totalMessages,
-                  defaultValue: `Showing ${chatMessages.length} of ${totalMessages}`,
+                  defaultValue: `Loaded ${loadedMessageCount} of ${totalMessages} records`,
                 })}
               </span>
               <button

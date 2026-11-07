@@ -559,7 +559,7 @@
       "sessionMessages": "Loading session messages..."
     },
     "messages": {
-      "showingOf": "Showing {{shown}} of {{total}} messages",
+      "showingOf": "Loaded {{shown}} of {{total}} records",
       "scrollToLoad": "Scroll up to load more",
       "showingLast": "Showing last {{visibleCount}} of {{total}}",
       "loadEarlier": "Load earlier messages",

@@ -83,3 +83,60 @@ test("backward history returns the latest window and stable cursors for older pa
     await rm(pilotHome, { recursive: true, force: true });
   }
 });
+
+test("backward pages start on a user prompt instead of cutting a turn in half", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "pilotdeck-align-project-"));
+  const pilotHome = await mkdtemp(join(tmpdir(), "pilotdeck-align-home-"));
+  try {
+    const sessionKey = "web:s_align";
+    const storage = createAgentProjectSessionStorage({
+      projectRoot,
+      pilotHome,
+      sessionId: sessionKey,
+      now: () => new Date("2026-08-02T00:00:00.000Z"),
+    });
+    for (let index = 1; index <= 3; index += 1) {
+      const turnId = `turn-${index}`;
+      await storage.transcript.recordAcceptedInput(sessionKey, turnId, [
+        { role: "user", content: [{ type: "text", text: `question-${index}` }] },
+      ]);
+      await storage.transcript.recordDurableMessage(sessionKey, turnId, {
+        role: "assistant",
+        content: [{ type: "text", text: `answer-${index}` }],
+      });
+      await storage.transcript.recordTurnResult(sessionKey, turnId, completedTurn(sessionKey, turnId));
+    }
+
+    const full = await readWebSessionMessages({ sessionKey }, { projectRoot, pilotHome });
+    assert.deepEqual(
+      full.messages.map((message) => message.text),
+      ["question-1", "answer-1", "question-2", "answer-2", "question-3", "answer-3"],
+    );
+
+    // A raw window of 3 records would start at "answer-2"; the page must
+    // backtrack so it begins on the turn's user prompt.
+    const aligned = await readWebSessionMessages(
+      { sessionKey, limit: 3, direction: "backward" },
+      { projectRoot, pilotHome },
+    );
+    assert.equal(aligned.messages[0]?.kind, "text");
+    assert.equal(aligned.messages[0]?.role, "user");
+    assert.deepEqual(
+      aligned.messages.map((message) => message.text),
+      ["question-2", "answer-2", "question-3", "answer-3"],
+    );
+    assert.equal(aligned.prevCursor, "2");
+
+    // Arbitrary later cursors must still align to a user prompt.
+    const older = await readWebSessionMessages(
+      { sessionKey, limit: 1, cursor: aligned.prevCursor, direction: "backward" },
+      { projectRoot, pilotHome },
+    );
+    assert.equal(older.messages[0]?.role, "user");
+    assert.deepEqual(older.messages.map((message) => message.text), ["question-1", "answer-1"]);
+    assert.equal(older.prevCursor, undefined);
+  } finally {
+    await rm(projectRoot, { recursive: true, force: true });
+    await rm(pilotHome, { recursive: true, force: true });
+  }
+});
