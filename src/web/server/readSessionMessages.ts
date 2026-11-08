@@ -1048,25 +1048,30 @@ function injectCompactBoundaryMessages(
   }
 }
 
-function insertWebMessageByTranscriptOrder(
+export function insertWebMessageByTranscriptOrder(
   allMessages: WebMessage[],
   message: WebMessage,
 ): void {
-  if (Number.isFinite(message.sequence)) {
-    const insertAt = allMessages.findIndex((candidate) =>
-      Number.isFinite(candidate.sequence) && candidate.sequence! > message.sequence!,
-    );
-    allMessages.splice(insertAt === -1 ? allMessages.length : insertAt, 0, message);
-    return;
-  }
-
-  let insertAt = allMessages.length;
+  // `sequence` is NOT a global ordering key: runtime status rows carry a
+  // turn-local counter that restarts at 1, so ordering by it alone hoists every
+  // status row to the top of the transcript and pushes the real conversation
+  // down. `createdAt` is monotonic across the transcript, so that is the
+  // primary key; `sequence` only breaks ties between rows sharing one instant.
+  let insertAt = 0;
   for (let index = allMessages.length - 1; index >= 0; index -= 1) {
-    if (allMessages[index].createdAt <= message.createdAt) {
+    const candidate = allMessages[index];
+    if (candidate.createdAt > message.createdAt) continue;
+    if (candidate.createdAt < message.createdAt) {
       insertAt = index + 1;
       break;
     }
-    if (index === 0) insertAt = 0;
+    const comparableSequences = Number.isFinite(candidate.sequence) && Number.isFinite(message.sequence);
+    if (comparableSequences && (message.sequence as number) < (candidate.sequence as number)) {
+      insertAt = index;
+      continue;
+    }
+    insertAt = index + 1;
+    break;
   }
   allMessages.splice(insertAt, 0, message);
 }
