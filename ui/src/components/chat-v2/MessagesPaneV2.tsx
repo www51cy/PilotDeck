@@ -293,10 +293,8 @@ function MeasuredMessageItem({
     <div
       ref={itemRef}
       className={`chat-message ${
-        message.type === 'user'
-          ? 'rounded-xl bg-sky-50/70 px-4 py-3 ring-1 ring-sky-100/80 dark:bg-sky-950/25 dark:ring-sky-900/40 '
-          : ''
-      }${isLast || flushBottomSpacing ? '' : compactBottomSpacing ? 'pb-2' : 'pb-4'}`}
+        isLast || flushBottomSpacing ? '' : compactBottomSpacing ? 'pb-2' : 'pb-4'
+      }`}
       data-message-key={itemKey}
       data-message-timestamp={message.timestamp ? String(message.timestamp) : undefined}
     >
