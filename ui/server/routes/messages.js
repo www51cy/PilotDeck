@@ -296,6 +296,14 @@ function mapWebMessageToNormalized(message, sessionId) {
         payload: message.payload,
       });
     case 'status':
+      if (Array.isArray(payload.incompleteTurnIds) && payload.incompleteTurnIds.length > 0) {
+        return createNormalizedMessage({
+          ...base,
+          kind: 'interrupted',
+          content: message.text || '',
+          payload,
+        });
+      }
       return createNormalizedMessage({
         ...base,
         kind: 'status',

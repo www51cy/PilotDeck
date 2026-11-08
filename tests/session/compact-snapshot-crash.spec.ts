@@ -33,7 +33,9 @@ test("a complete compact snapshot replays without turn_result and preserves subs
   assert.deepEqual(result.messages, [...snapshotMessages, ...oldMessages]);
   assert.equal(result.lastCompactBoundaryIndex, 1);
   assert.equal(result.lastCompactBoundary, compactEntry);
-  assert.equal(result.diagnostics.length, 0);
+  assert.deepEqual(result.diagnostics.map(item => [item.code, item.turnId]), [
+    ["transcript_turn_incomplete", "next"],
+  ]);
   assert.notEqual(result.messages[0], snapshotMessages[0]);
   assert.equal(result.events.length, 3);
 });
@@ -118,7 +120,8 @@ test("invalid snapshots never replace history or supersede the last valid snapsh
     assert.deepEqual(fallback.messages, oldMessages);
     assert.equal(fallback.lastCompactBoundary, undefined);
     assert.equal(findLastCompactBoundaryIndex([oldEntry, invalid]), -1);
-    assert.equal(fallback.diagnostics.length, 1);
+    assert.equal(fallback.diagnostics.filter(item => item.code === "transcript_entry_invalid").length, 1);
+    assert.deepEqual(fallback.diagnostics.filter(item => item.code === "transcript_turn_incomplete").map(item => item.turnId), [oldEntry.turnId]);
     const prior = replayTranscriptEntries([oldEntry, compactEntry, invalid]);
     assert.deepEqual(prior.messages, snapshotMessages);
     assert.equal(prior.lastCompactBoundary, compactEntry);

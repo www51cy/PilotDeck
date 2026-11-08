@@ -46,6 +46,37 @@ describe('message routes', () => {
       expect(await response.json()).toMatchObject({ hasMore: true, prevCursor: '3' });
     } finally { await new Promise(resolve => server.close(resolve)); }
   });
+
+  it('maps incomplete historical turns to visible interrupted messages', async () => {
+    vi.doMock('../pilotdeck-bridge.js', () => ({
+      getPilotDeckGateway: vi.fn(),
+      isGatewayUnavailableError: () => false,
+      withPilotDeckGatewayReadRetry: vi.fn(async () => ({ messages: [
+        {
+          id: 'incomplete-turn',
+          kind: 'status',
+          role: 'system',
+          text: '本轮记录尚未写入最终结果，已恢复当时产生的工具调用和输出。',
+          payload: { incompleteTurnIds: ['turn-1'] },
+        },
+      ] })),
+    }));
+    const { default: routes } = await import('./messages.js');
+    const app = express();
+    app.use('/api/sessions', routes);
+    const server = app.listen(0);
+    try {
+      const response = await nativeFetch(`http://127.0.0.1:${server.address().port}/api/sessions/session/messages`);
+      expect((await response.json()).messages[0]).toMatchObject({
+        kind: 'interrupted',
+        content: '本轮记录尚未写入最终结果，已恢复当时产生的工具调用和输出。',
+        payload: { incompleteTurnIds: ['turn-1'] },
+      });
+    } finally {
+      await new Promise(resolve => server.close(resolve));
+    }
+  });
+
   it('retains block IDs in the HTTP history returned to the browser', async () => {
     vi.doMock('../pilotdeck-bridge.js', () => ({
       getPilotDeckGateway: vi.fn(),

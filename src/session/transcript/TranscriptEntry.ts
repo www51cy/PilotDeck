@@ -238,10 +238,16 @@ export function truncatePreview(input: string, byteCap: number): { preview: stri
 }
 
 export type AgentTranscriptDiagnostic = {
-  code: "transcript_missing" | "transcript_too_large" | "transcript_line_invalid" | "transcript_entry_invalid";
+  code:
+    | "transcript_missing"
+    | "transcript_too_large"
+    | "transcript_line_invalid"
+    | "transcript_entry_invalid"
+    | "transcript_turn_incomplete";
   severity: "warning" | "error";
   message: string;
   line?: number;
+  turnId?: string;
 };
 
 export function classifyDurableMessageEntry(message: CanonicalMessage): AgentMessageTranscriptEntry["type"] {

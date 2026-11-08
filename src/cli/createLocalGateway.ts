@@ -583,6 +583,7 @@ export function createLocalGateway(options: CreateLocalGatewayOptions = {}): Cre
         pilotHome,
         maxContextTokens: defaultRuntime.snapshot.config.agent.maxContextTokens,
         maxOutputTokens: defaultRuntime.snapshot.config.agent.maxOutputTokens,
+        activeTurnId: router.activeTurnRunId(input.sessionKey),
         now,
       }),
     readSubagentMessages: (input) =>

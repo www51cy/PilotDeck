@@ -3,6 +3,10 @@ import type { AgentEvent } from "../../agent/protocol/events.js";
 import type { AgentPermissionDenial, AgentTurnResult } from "../../agent/protocol/result.js";
 import type { AgentTranscriptDiagnostic, AgentTranscriptEntry, SessionMetadataValue } from "./TranscriptEntry.js";
 import { readCompactSnapshot, readRestoreSnapshot } from "./CompactSnapshot.js";
+import {
+  deriveAgentTurnTerminations,
+  type AgentTurnTermination,
+} from "./TurnTermination.js";
 
 export type AgentTranscriptReplayResult = {
   messages: CanonicalMessage[];
@@ -11,6 +15,8 @@ export type AgentTranscriptReplayResult = {
   events: AgentEvent[];
   metadata: SessionMetadataValue;
   diagnostics: AgentTranscriptDiagnostic[];
+  /** Termination evidence for turns in the active (post-compaction) transcript. */
+  turnTerminations: ReadonlyMap<string, AgentTurnTermination>;
   /**
    * Index of the last compact_boundary entry consumed during replay. When
    * present, its snapshot and messages after it are kept in `messages`.
@@ -44,9 +50,8 @@ export function replayTranscriptEntries(entries: AgentTranscriptEntry[]): AgentT
   let permissionDenials: AgentPermissionDenial[] = [];
   let lastCompactBoundary: (AgentTranscriptEntry & { type: "control_boundary" }) | undefined;
 
-  const completedTurnIds = new Set(
-    entries.filter((entry) => entry.type === "turn_result").map((entry) => entry.turnId),
-  );
+  const activeEntries = lastBoundaryIndex === -1 ? entries : entries.slice(lastBoundaryIndex);
+  const turnTerminations = deriveAgentTurnTerminations(activeEntries);
 
   for (let index = 0; index < entries.length; index += 1) {
     const entry = entries[index];
@@ -78,14 +83,6 @@ export function replayTranscriptEntries(entries: AgentTranscriptEntry[]): AgentT
         // Legacy replacement records have no completeness guarantee. Their
         // original history is retained instead; do not duplicate a partial copy.
         if (entry.message.metadata?.compactReplacement === true) break;
-        if (!completedTurnIds.has(entry.turnId)) {
-          diagnostics.push({
-            code: "transcript_entry_invalid",
-            severity: "warning",
-            message: `Skipping durable message for incomplete turn ${entry.turnId}.`,
-          });
-          break;
-        }
         if (beforeBoundary) {
           break;
         }
@@ -140,6 +137,16 @@ export function replayTranscriptEntries(entries: AgentTranscriptEntry[]): AgentT
     }
   }
 
+  for (const [turnId, termination] of turnTerminations) {
+    if (termination !== "incomplete") continue;
+    diagnostics.push({
+      code: "transcript_turn_incomplete",
+      severity: "warning",
+      message: `Replaying incomplete turn ${turnId}; no turn_result was recorded.`,
+      turnId,
+    });
+  }
+
   return {
     messages,
     usage,
@@ -147,6 +154,7 @@ export function replayTranscriptEntries(entries: AgentTranscriptEntry[]): AgentT
     events,
     metadata,
     diagnostics,
+    turnTerminations,
     lastCompactBoundaryIndex: lastBoundaryIndex === -1 ? undefined : lastBoundaryIndex,
     lastCompactBoundary,
   };

@@ -161,6 +161,49 @@ test("patches a missing parallel result when the next assistant arrives immediat
   assert.deepEqual(new MessageProjector().project({ messages: result.messages }).messages, result.messages);
 });
 
+test("pairs an end-of-history interrupted call before a resumed user prompt", () => {
+  const input = [
+    userText("original request"),
+    toolCalls("interrupted-call"),
+    userText("continue after restart"),
+  ];
+
+  const result = new MessageProjector().project({ messages: input });
+
+  assert.deepEqual(result.messages.map(message => message.role), ["user", "assistant", "user"]);
+  assert.deepEqual(result.messages[2]?.content.map(block => block.type), ["tool_result", "text"]);
+  assert.deepEqual(result.messages[2]?.content[1], { type: "text", text: "continue after restart" });
+  assert.deepEqual(result.messages[2]?.content[0], {
+    type: "tool_result",
+    toolCallId: "interrupted-call",
+    content: [{ type: "text", text: "[result truncated]" }],
+  });
+  assert.deepEqual(result.warnings.map(warning => warning.code), ["tool_result_injected"]);
+  assert.deepEqual(new MessageProjector().project({ messages: result.messages }).messages, result.messages);
+});
+
+test("drops orphaned durable tool results without discarding surrounding text", () => {
+  const orphan: CanonicalMessage = {
+    role: "user",
+    content: [
+      {
+        type: "tool_result",
+        toolCallId: "missing-call",
+        content: [{ type: "text", text: "orphan output" }],
+      },
+      { type: "text", text: "keep this durable note" },
+    ],
+  };
+  const orphanOnly = toolResult("also-missing");
+  const input = [orphan, orphanOnly, userText("next prompt")];
+
+  const result = new MessageProjector().project({ messages: input });
+
+  assert.deepEqual(result.messages, [userText("keep this durable note"), userText("next prompt")]);
+  assert.deepEqual(result.warnings.map(warning => warning.code), ["tool_result_orphaned", "tool_result_orphaned"]);
+  assert.match(JSON.stringify(input), /orphan output/, "projection must not mutate replayed history");
+});
+
 test("hoists a delayed result above leading text without reversing user text", () => {
   const delayed: CanonicalMessage = {
     role: "user",

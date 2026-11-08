@@ -50,6 +50,7 @@ export {
 } from "./transcript/JsonlTranscriptWriter.js";
 export { readTranscript, type AgentTranscriptReadResult } from "./transcript/TranscriptReader.js";
 export { replayTranscriptEntries, findLastCompactBoundaryIndex, type AgentTranscriptReplayResult } from "./transcript/TranscriptReplay.js";
+export { deriveAgentTurnTerminations, type AgentTurnTermination } from "./transcript/TurnTermination.js";
 export { replaySubagentTranscript } from "./transcript/replaySubagentTranscript.js";
 export {
   FileArtifactCollector,

@@ -26,6 +26,7 @@ import {
 import { listProjectSessions, readTranscript, type SessionInfo } from "../../session/index.js";
 import type { AgentTranscriptEntry } from "../../session/transcript/TranscriptEntry.js";
 import { activeTranscriptEntries } from "../../session/transcript/CompactSnapshot.js";
+import { deriveAgentTurnTerminations } from "../../session/transcript/TurnTermination.js";
 import { readModelContextSnapshot } from '../../session/context/ModelContextSnapshot.js';
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { getPilotProjectChatDir } from "../../pilot/index.js";
@@ -41,6 +42,8 @@ export type ReadWebSessionMessagesOptions = {
   pilotHome: string;
   maxContextTokens?: number;
   maxOutputTokens?: number;
+  /** Current in-flight transcript turn, which is active rather than interrupted. */
+  activeTurnId?: string;
   /** Override clock for deterministic tests. */
   now?: () => Date;
 };
@@ -75,7 +78,7 @@ export async function readWebSessionMessages(
   const entryIds = webReplay.entryIds;
   const entryTurnIds = webReplay.turnIds;
   const entrySequences = webReplay.sequences;
-  const incompleteTurnIds = extractIncompleteTurnIds(entries);
+  const incompleteTurnIds = extractIncompleteTurnIds(entries, options.activeTurnId);
 
   const flattenedPerMessage: WebMessage[][] = webReplay.messages
     .map((message, index) =>
@@ -486,22 +489,10 @@ function createIncompleteTurnStatusMessage(
   };
 }
 
-function extractIncompleteTurnIds(entries: AgentTranscriptEntry[]): string[] {
-  const completedTurnIds = new Set(
-    entries.filter((entry) => entry.type === "turn_result").map((entry) => entry.turnId),
-  );
-  const incompleteTurnIds = new Set<string>();
-  for (const entry of entries) {
-    if (
-      (entry.type === "assistant_message" ||
-        entry.type === "tool_result_message" ||
-        entry.type === "durable_message") &&
-      !completedTurnIds.has(entry.turnId)
-    ) {
-      incompleteTurnIds.add(entry.turnId);
-    }
-  }
-  return [...incompleteTurnIds];
+function extractIncompleteTurnIds(entries: AgentTranscriptEntry[], activeTurnId?: string): string[] {
+  return [...deriveAgentTurnTerminations(entries)]
+    .filter(([turnId, termination]) => termination === "incomplete" && turnId !== activeTurnId)
+    .map(([turnId]) => turnId);
 }
 
 async function locateSession(
@@ -824,11 +815,9 @@ function toWebMessageImage(block: CanonicalImageBlock): NonNullable<WebMessage["
 }
 
 /**
- * Web history is allowed to show persisted messages from incomplete turns so
- * users do not lose tool calls they already saw live. Keep this projection
- * local to the web reader: the core transcript replay still skips incomplete
- * durable messages so agent resume never feeds half-finished tool histories
- * back to the model.
+ * Web history and core replay both retain durable messages from incomplete
+ * turns. MessageProjector repairs tool pairing on each model request without
+ * changing either this projection or the persisted transcript.
  */
 type CompactBoundaryInfo = {
   timestamp: string;
