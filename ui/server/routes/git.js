@@ -303,6 +303,48 @@ router.get('/status', async (req, res) => {
   try {
     const projectPath = await getActualProjectPath(project);
 
+    // `summary=1` powers the composer's branch chip. It resolves its own
+    // repository because the workspace itself may not be one: a general
+    // workspace usually is not, and a home directory can be left with a stray
+    // `.git`. In both cases the chip should describe the repository the runtime
+    // actually works in.
+    if (req.query.summary === '1' || req.query.summary === 'true') {
+      const home = path.resolve(os.homedir());
+      const isUsableRoot = (root) => Boolean(root) && path.resolve(root) !== home;
+
+      let summaryRoot = await getRepositoryRootPath(projectPath).catch(() => null);
+      if (!isUsableRoot(summaryRoot)) {
+        const runtimeRoot = await getRepositoryRootPath(process.cwd()).catch(() => null);
+        if (!isUsableRoot(runtimeRoot)) {
+          return res.json({ isRepository: false, repositoryRoot: summaryRoot });
+        }
+        summaryRoot = path.resolve(runtimeRoot);
+      }
+
+      const [summaryBranch, summaryStatus, aheadBehind] = await Promise.all([
+        getCurrentBranchName(summaryRoot).catch(() => ''),
+        spawnAsync('git', ['--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: summaryRoot }),
+        spawnAsync('git', ['rev-list', '--left-right', '--count', '@{upstream}...HEAD'], { cwd: summaryRoot })
+          .then((result) => result.stdout.trim().split(/\s+/).map(Number), () => null),
+      ]);
+
+      if (!summaryBranch) {
+        return res.json({ isRepository: false, repositoryRoot: summaryRoot });
+      }
+
+      const summaryEntries = parseGitStatus(summaryStatus.stdout);
+      const [behind = 0, ahead = 0] = aheadBehind ?? [];
+      return res.json({
+        isRepository: true,
+        branch: summaryBranch,
+        repositoryRoot: summaryRoot,
+        dirty: summaryEntries.length,
+        ahead: Number.isFinite(ahead) ? ahead : 0,
+        behind: Number.isFinite(behind) ? behind : 0,
+        untracked: summaryEntries.filter((entry) => entry.untracked).length,
+      });
+    }
+
     ensurePilotProjectGitIgnore(projectPath, false);
     // Validate git repository
     await validateGitRepository(projectPath);
@@ -314,56 +356,6 @@ router.get('/status', async (req, res) => {
     const repositoryRoot = await getRepositoryRootPath(projectPath);
     const { stdout: statusOutput } = await spawnAsync('git', ['--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: repositoryRoot });
     const entries = parseGitStatus(statusOutput);
-
-    // `summary=1` powers the composer's branch chip: same source of truth,
-    // without per-file fingerprints or `write-tree` (which are only needed for
-    // the checkpoint diff view).
-    if (req.query.summary === '1' || req.query.summary === 'true') {
-      const home = path.resolve(os.homedir());
-      // A workspace that merely sits inside someone else's repository (most
-      // often a home directory that was accidentally `git init`-ed) must not
-      // borrow that repository's branch. Fall back to the directory the runtime
-      // actually works in, which is the repository the user cares about.
-      let summaryRoot = path.resolve(repositoryRoot);
-      if (summaryRoot === home) {
-        const runtimeRoot = await getRepositoryRootPath(process.cwd()).catch(() => null);
-        if (!runtimeRoot || path.resolve(runtimeRoot) === home) {
-          return res.json({ isRepository: false, repositoryRoot: summaryRoot, reason: 'ANCESTOR_HOME_REPOSITORY' });
-        }
-        summaryRoot = path.resolve(runtimeRoot);
-      }
-
-      const runtimeBranch = summaryRoot === path.resolve(repositoryRoot)
-        ? branch
-        : await getCurrentBranchName(summaryRoot).catch(() => '');
-      const { stdout: summaryStatus } = await spawnAsync(
-        'git',
-        ['--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=all'],
-        { cwd: summaryRoot },
-      );
-      const summaryEntries = summaryRoot === path.resolve(repositoryRoot)
-        ? entries
-        : parseGitStatus(summaryStatus);
-      const aheadBehind = await spawnAsync(
-        'git',
-        ['rev-list', '--left-right', '--count', '@{upstream}...HEAD'],
-        { cwd: summaryRoot },
-      ).then(result => result.stdout.trim().split(/\s+/).map(Number), () => null);
-      const [behind = 0, ahead = 0] = aheadBehind ?? [];
-      return res.json({
-        isRepository: true,
-        branch: runtimeBranch,
-        hasCommits,
-        repositoryRoot: summaryRoot,
-        dirty: summaryEntries.length,
-        ahead: Number.isFinite(ahead) ? ahead : 0,
-        behind: Number.isFinite(behind) ? behind : 0,
-        untracked: summaryEntries.filter(entry => entry.untracked).length,
-      });
-    }
-
-    const fileFingerprints = Object.fromEntries(await Promise.all(entries.map(async entry => [entry.path, await repositoryFileFingerprint(repositoryRoot, entry.path)])));
-    const indexTree = await spawnAsync('git', ['write-tree'], { cwd: repositoryRoot }).then(result => result.stdout.trim(), () => null);
 
     const modified = [];
     const added = [];
