@@ -1,9 +1,9 @@
 import fs from 'node:fs/promises';
 import os from 'os';
 import path from 'path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { resolvePilotHome } from '../utils/pilotPaths.js';
-import { createCloneSession, takeCloneSession, validateWorkspacePath } from './projects.js';
+import { createCloneSession, parseGitHubRepository, takeCloneSession, validateWorkspacePath } from './projects.js';
 
 describe('validateWorkspacePath', () => {
   it('rejects the filesystem root and system directories', async () => {
@@ -70,5 +70,70 @@ describe('clone sessions', () => {
     expect(takeCloneSession(id, 2)).toBeNull();
     expect(takeCloneSession(id, 1)).toMatchObject({ workspacePath: '/tmp/work', userId: 1 });
     expect(takeCloneSession(id, 1)).toBeNull();
+  });
+});
+
+
+describe('validateWorkspacePath symbolic link boundaries', () => {
+  it('rejects dangling, chained and looping symbolic links but allows ordinary missing paths', async () => {
+    const base = await fs.mkdtemp(path.join(os.tmpdir(), 'pilotdeck-dangling-link-'));
+    try {
+      const dangling = path.join(base, 'dangling');
+      const chained = path.join(base, 'chained');
+      const loopA = path.join(base, 'loop-a');
+      const loopB = path.join(base, 'loop-b');
+      await fs.symlink('/etc/pilotdeck-target-that-does-not-exist', dangling, 'dir');
+      await fs.symlink(dangling, chained, 'dir');
+      await fs.symlink(loopB, loopA, 'dir');
+      await fs.symlink(loopA, loopB, 'dir');
+
+      expect((await validateWorkspacePath(path.join(dangling, 'nested'))).valid).toBe(false);
+      expect((await validateWorkspacePath(path.join(chained, 'nested'))).valid).toBe(false);
+      expect((await validateWorkspacePath(path.join(loopA, 'nested'))).valid).toBe(false);
+      expect((await validateWorkspacePath(path.join(base, 'ordinary', 'missing'))).valid).toBe(true);
+    } finally {
+      await fs.rm(base, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('clone session expiration timer', () => {
+  it('removes sessions when their expiration timer fires', () => {
+    vi.useFakeTimers();
+    try {
+      const id = createCloneSession({ workspacePath: '/tmp/work', userId: 1 }, 10);
+      vi.advanceTimersByTime(11);
+      expect(takeCloneSession(id, 1)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('parseGitHubRepository', () => {
+  it('accepts canonical HTTPS and SSH GitHub repository URLs', () => {
+    expect(parseGitHubRepository('https://github.com/openbmb/PilotDeck.git')).toMatchObject({
+      repoName: 'PilotDeck',
+      protocol: 'https:',
+      origin: 'https://github.com',
+    });
+    expect(parseGitHubRepository('git@github.com:openbmb/PilotDeck.git')).toMatchObject({
+      repoName: 'PilotDeck',
+      protocol: 'ssh:',
+    });
+  });
+
+  it('rejects credential-bearing, non-GitHub and path-traversal URLs', () => {
+    const invalidUrls = [
+      'https://token@github.com/openbmb/PilotDeck.git',
+      'https://evil.example/openbmb/PilotDeck.git',
+      'https://github.com/openbmb/..',
+      'https://github.com/openbmb/%2E%2E',
+      'https://github.com/openbmb/%2Fetc',
+      'https://github.com/openbmb/PilotDeck.git?target=elsewhere',
+    ];
+    for (const url of invalidUrls) {
+      expect(() => parseGitHubRepository(url), url).toThrow();
+    }
   });
 });

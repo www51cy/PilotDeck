@@ -53,9 +53,100 @@ export function takeCloneSession(id, userId) {
   return data;
 }
 
+const GITHUB_HOSTNAME = 'github.com';
+const REPOSITORY_SEGMENT_PATTERN = /^[A-Za-z0-9_.-]+$/;
+
+function invalidRepositoryUrl(message) {
+  const error = new Error(message);
+  error.code = 'INVALID_REPOSITORY_URL';
+  return error;
+}
+
+function createCloneAbortError() {
+  const error = new Error('Git clone aborted.');
+  error.name = 'AbortError';
+  error.code = 'ABORT_ERR';
+  return error;
+}
+
+function parseRepositoryName(pathname) {
+  let segments;
+  try {
+    segments = pathname.split('/').filter(Boolean).map((segment) => decodeURIComponent(segment));
+  } catch {
+    throw invalidRepositoryUrl('GitHub URL contains invalid path encoding');
+  }
+  if (segments.length !== 2) {
+    throw invalidRepositoryUrl('GitHub URL must identify an owner and repository');
+  }
+  const [owner, repository] = segments;
+  const repoName = repository.endsWith('.git') ? repository.slice(0, -4) : repository;
+  if (
+    !REPOSITORY_SEGMENT_PATTERN.test(owner)
+    || !REPOSITORY_SEGMENT_PATTERN.test(repoName)
+    || owner === '.' || owner === '..'
+    || repoName === '.' || repoName === '..'
+  ) {
+    throw invalidRepositoryUrl('GitHub URL contains an invalid owner or repository name');
+  }
+  return repoName;
+}
+
+export function parseGitHubRepository(githubUrl) {
+  if (typeof githubUrl !== 'string' || !githubUrl.trim()) {
+    throw invalidRepositoryUrl('A GitHub repository URL is required');
+  }
+  const cloneUrl = githubUrl.trim();
+  const scpLike = cloneUrl.includes('://') ? null : /^(?:[\w.-]+@)?([\w.-]+):([^\s]+)$/.exec(cloneUrl);
+  let protocol;
+  let hostname;
+  let pathname;
+  let origin;
+
+  if (scpLike) {
+    protocol = 'ssh:';
+    hostname = scpLike[1].toLowerCase();
+    pathname = scpLike[2];
+    origin = `ssh://${hostname}`;
+  } else {
+    let url;
+    try {
+      url = new URL(cloneUrl);
+    } catch {
+      throw invalidRepositoryUrl('Git URL must use HTTP(S) or SSH');
+    }
+    protocol = url.protocol;
+    if (!['http:', 'https:', 'ssh:'].includes(protocol)) {
+      throw invalidRepositoryUrl('Git URL must use HTTP(S) or SSH');
+    }
+    hostname = url.hostname.toLowerCase();
+    if (url.port) throw invalidRepositoryUrl('GitHub URL must use the default service port');
+    if (protocol !== 'ssh:' && (url.username || url.password)) {
+      throw invalidRepositoryUrl('Credentials must not be embedded in the repository URL');
+    }
+    if (url.search || url.hash) {
+      throw invalidRepositoryUrl('GitHub URL must not contain a query string or fragment');
+    }
+    pathname = url.pathname;
+    origin = url.origin;
+  }
+
+  if (hostname !== GITHUB_HOSTNAME) {
+    throw invalidRepositoryUrl('Only repositories hosted on github.com are supported');
+  }
+  return { cloneUrl, repoName: parseRepositoryName(pathname), protocol, origin };
+}
+
 function sanitizeGitError(message, token) {
-  if (!message || !token) return message;
-  return message.replace(new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '***');
+  if (!message) return message;
+  if (!token) return message;
+  let sanitized = message;
+  const secrets = new Set([token, encodeURIComponent(token), Buffer.from(`${token}:`).toString('base64')]);
+  for (const secret of secrets) {
+    if (!secret) continue;
+    sanitized = sanitized.replace(new RegExp(secret.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '***');
+  }
+  return sanitized;
 }
 
 // Default root used by the folder browser when no path is provided.
@@ -139,6 +230,15 @@ async function resolveThroughExistingAncestor(absolutePath) {
       return path.join(realAncestor, ...missingSegments);
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
+      let stats;
+      try {
+        stats = await fs.lstat(current);
+      } catch (lstatError) {
+        if (lstatError.code !== 'ENOENT') throw lstatError;
+      }
+      if (stats?.isSymbolicLink()) {
+        throw new Error(`Cannot resolve symbolic link in workspace path: ${current}`);
+      }
       const parent = path.dirname(current);
       if (parent === current) throw error;
       missingSegments.unshift(path.basename(current));
@@ -558,6 +658,7 @@ router.post('/clone-sessions', async (req, res) => {
     if (!workspacePath || !githubUrl) {
       return res.status(400).json({ error: 'path and githubUrl are required' });
     }
+    const repository = parseGitHubRepository(githubUrl);
 
     const validation = await validateWorkspacePath(workspacePath);
     if (!validation.valid) {
@@ -574,16 +675,20 @@ router.post('/clone-sessions', async (req, res) => {
     } else if (newGithubToken) {
       githubToken = newGithubToken;
     }
+    if (githubToken && repository.protocol === 'http:') {
+      return res.status(400).json({ error: 'GitHub token authentication requires HTTPS' });
+    }
 
     const cloneSessionId = createCloneSession({
       workspacePath: validation.resolvedPath,
-      githubUrl,
+      githubUrl: repository.cloneUrl,
       githubToken,
       userId: req.user.id,
     });
     res.json({ cloneSessionId });
   } catch (error) {
-    res.status(500).json({ error: error.message || 'Failed to prepare repository clone' });
+    const status = error.code === 'INVALID_REPOSITORY_URL' ? 400 : 500;
+    res.status(status).json({ error: error.message || 'Failed to prepare repository clone' });
   }
 });
 
@@ -598,74 +703,116 @@ router.get('/clone-progress', async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
+  const abortController = new AbortController();
   const sendEvent = (type, data) => {
-    res.write(`data: ${JSON.stringify({ type, ...data })}\n\n`);
+    if (res.destroyed || res.writableEnded) return;
+    try {
+      res.write(`data: ${JSON.stringify({ type, ...data })}\n\n`);
+    } catch {
+      abortController.abort();
+    }
+  };
+  const endResponse = () => {
+    if (res.destroyed || res.writableEnded) return;
+    try { res.end(); } catch { /* The peer may already have disconnected. */ }
   };
 
+  let session;
   try {
-    const session = typeof cloneSessionId === 'string' ? takeCloneSession(cloneSessionId, req.user.id) : null;
-    if (!session) {
-      sendEvent('error', { message: 'Clone session is invalid or has expired. Please try again.' });
-      res.end();
-      return;
-    }
-    const { workspacePath: absolutePath, githubUrl, githubToken } = session;
-
-    await fs.mkdir(absolutePath, { recursive: true });
-
-    const normalizedUrl = githubUrl.replace(/\/+$/, '').replace(/\.git$/, '');
-    const repoName = normalizedUrl.split('/').pop() || 'repository';
-    const clonePath = path.join(absolutePath, repoName);
-
-    // Check if clone destination already exists to prevent data loss
-    try {
-      await fs.access(clonePath);
-      sendEvent('error', { message: `Directory "${repoName}" already exists. Please choose a different location or remove the existing directory.` });
-      res.end();
-      return;
-    } catch (err) {
-      // Directory doesn't exist, which is what we want
-    }
-
-    sendEvent('progress', { message: `Cloning into '${repoName}'...` });
-
-    const abortController = new AbortController();
-    const abortClone = () => abortController.abort();
-    req.once('close', abortClone);
-    try {
-      try {
-        await cloneGitHubRepository(githubUrl, clonePath, githubToken, {
-          signal: abortController.signal,
-          onProgress: (message) => {
-            const trimmed = message.trim();
-            if (trimmed) sendEvent('progress', { message: trimmed });
-          },
-        });
-      } catch (error) {
-        try {
-          await fs.rm(clonePath, { recursive: true, force: true });
-        } catch (cleanupError) {
-          console.error('Failed to clean up after clone failure:', sanitizeGitError(cleanupError.message, githubToken));
-        }
-        sendEvent('error', { message: sanitizeGitError(error.message, githubToken) || 'Git clone failed' });
-        return;
-      }
-
-      try {
-        const project = await addProjectManually(clonePath);
-        sendEvent('complete', { project, message: 'Repository cloned successfully' });
-      } catch (error) {
-        sendEvent('error', { message: `Clone succeeded but failed to add project: ${error.message}` });
-      }
-    } finally {
-      req.removeListener('close', abortClone);
-      res.end();
-    }
-
+    session = typeof cloneSessionId === 'string' ? takeCloneSession(cloneSessionId, req.user.id) : null;
   } catch (error) {
     sendEvent('error', { message: error.message });
-    res.end();
+    endResponse();
+    return;
   }
+  if (!session) {
+    sendEvent('error', { message: 'Clone session is invalid or has expired. Please try again.' });
+    endResponse();
+    return;
+  }
+  const { workspacePath: absolutePath, githubUrl, githubToken } = session;
+  const abortClone = () => abortController.abort();
+  req.once('close', abortClone);
+  let ownedClonePath = null;
+  let failure = null;
+  let project = null;
+
+  try {
+    const repository = parseGitHubRepository(githubUrl);
+    if (githubToken && repository.protocol === 'http:') {
+      throw invalidRepositoryUrl('GitHub token authentication requires HTTPS');
+    }
+    const workspaceRoot = path.resolve(absolutePath);
+    const confirmWorkspace = async () => {
+      const confirmed = await validateWorkspacePath(workspaceRoot);
+      if (!confirmed.valid) {
+        throw new Error(`Workspace validation failed before cloning: ${confirmed.error}`);
+      }
+      if (normalizePathForComparison(confirmed.resolvedPath) !== normalizePathForComparison(workspaceRoot)) {
+        throw new Error('Workspace path changed during clone preparation');
+      }
+    };
+    // Validate both sides of directory creation. A dangling or replaced link
+    // must be rejected before mkdir can write through it.
+    await confirmWorkspace();
+    await fs.mkdir(workspaceRoot, { recursive: true });
+    await confirmWorkspace();
+    const clonePath = path.join(workspaceRoot, repository.repoName);
+    if (
+      clonePath === workspaceRoot
+      || path.dirname(clonePath) !== workspaceRoot
+      || !isPathInsideOrEqual(workspaceRoot, clonePath)
+    ) {
+      throw new Error('Repository destination escapes the selected workspace');
+    }
+
+    try {
+      // mkdir is the atomic no-overwrite reservation. Only its successful
+      // creator is allowed to clean up this destination.
+      await fs.mkdir(clonePath, { mode: 0o700 });
+      ownedClonePath = clonePath;
+    } catch (error) {
+      if (error.code === 'EEXIST') {
+        throw new Error(`Directory "${repository.repoName}" already exists. Please choose a different location or remove the existing directory.`);
+      }
+      throw error;
+    }
+
+    sendEvent('progress', { message: `Cloning into '${repository.repoName}'...` });
+    await cloneGitHubRepository(githubUrl, clonePath, githubToken, {
+      signal: abortController.signal,
+      onProgress: (message) => {
+        const trimmed = message.trim();
+        if (trimmed) sendEvent('progress', { message: trimmed });
+      },
+    });
+    // A successful clone is user data. Registration failure must not delete it.
+    ownedClonePath = null;
+    try {
+      project = await addProjectManually(clonePath);
+    } catch (error) {
+      throw new Error(`Clone succeeded but failed to add project: ${error.message}`);
+    }
+  } catch (error) {
+    failure = error;
+  } finally {
+    if (ownedClonePath) {
+      try {
+        await fs.rm(ownedClonePath, { recursive: true, force: true });
+      } catch (cleanupError) {
+        console.error('Failed to clean up after clone failure:', sanitizeGitError(cleanupError.message, githubToken));
+        if (!failure) failure = cleanupError;
+      }
+    }
+    req.removeListener('close', abortClone);
+  }
+
+  if (failure) {
+    sendEvent('error', { message: sanitizeGitError(failure.message, githubToken) || 'Git clone failed' });
+  } else {
+    sendEvent('complete', { project, message: 'Repository cloned successfully' });
+  }
+  endResponse();
 });
 
 /**
@@ -673,33 +820,38 @@ router.get('/clone-progress', async (req, res) => {
  */
 export function cloneGitHubRepository(githubUrl, destinationPath, githubToken = null, options = {}) {
   return new Promise((resolve, reject) => {
-    const isScpLikeSsh = /^(?:[\w.-]+@)?[\w.-]+:[^\s]+$/.test(githubUrl);
-    let protocol;
+    if (options.signal?.aborted) return reject(createCloneAbortError());
+    let repository;
     try {
-      protocol = new URL(githubUrl).protocol;
-      if (!['http:', 'https:', 'ssh:'].includes(protocol)) {
-        return reject(new Error('Git URL must use HTTP(S) or SSH'));
-      }
-    } catch {
-      if (!isScpLikeSsh) return reject(new Error('Git URL must use HTTP(S) or SSH'));
+      repository = parseGitHubRepository(githubUrl);
+    } catch (error) {
+      return reject(error);
     }
 
     const env = {
       ...process.env,
       GIT_TERMINAL_PROMPT: '0'
     };
-    if (githubToken && ['http:', 'https:'].includes(protocol)) {
-      // Keep credentials out of the clone URL and process arguments. Git reads
-      // this extra HTTP header from per-process config supplied via the env.
-      const existingCount = Number.parseInt(env.GIT_CONFIG_COUNT ?? '0', 10);
-      const configIndex = Number.isInteger(existingCount) && existingCount >= 0 ? existingCount : 0;
+    const parsedCount = Number(env.GIT_CONFIG_COUNT ?? '0');
+    let configIndex = Number.isInteger(parsedCount) && parsedCount >= 0 ? parsedCount : 0;
+    const addGitConfig = (key, value) => {
+      env[`GIT_CONFIG_KEY_${configIndex}`] = key;
+      env[`GIT_CONFIG_VALUE_${configIndex}`] = value;
+      configIndex += 1;
+      env.GIT_CONFIG_COUNT = String(configIndex);
+    };
+    if (githubToken && repository.protocol === 'http:') {
+      return reject(invalidRepositoryUrl('GitHub token authentication requires HTTPS'));
+    }
+    if (githubToken && repository.protocol === 'https:') {
+      // Scope credentials to github.com and disable redirects while a token is
+      // attached, so credentials cannot be forwarded to a different origin.
       const authorization = Buffer.from(`${githubToken}:`).toString('base64');
-      env.GIT_CONFIG_COUNT = String(configIndex + 1);
-      env[`GIT_CONFIG_KEY_${configIndex}`] = 'http.extraHeader';
-      env[`GIT_CONFIG_VALUE_${configIndex}`] = `Authorization: Basic ${authorization}`;
+      addGitConfig(`http.${repository.origin}/.extraHeader`, `Authorization: Basic ${authorization}`);
+      addGitConfig('http.followRedirects', 'false');
     }
 
-    const gitProcess = spawn('git', ['clone', '--progress', '--', githubUrl, destinationPath], {
+    const gitProcess = spawn('git', ['clone', '--progress', '--', repository.cloneUrl, destinationPath], {
       stdio: ['ignore', 'pipe', 'pipe'],
       env,
       windowsHide: process.platform === 'win32'
@@ -728,28 +880,30 @@ export function cloneGitHubRepository(githubUrl, destinationPath, githubToken = 
     const terminate = (error) => {
       if (settled || terminationError) return;
       terminationError = error;
-      gitProcess.kill('SIGTERM');
+      try { gitProcess.kill('SIGTERM'); } catch { /* The forced exit below must still run. */ }
       if (settled) return;
       forceKillTimer = setTimeout(() => {
-        gitProcess.kill('SIGKILL');
-        finish(terminationError);
+        try { gitProcess.kill('SIGKILL'); } catch { /* Settle even if the process is already gone. */ }
+        finally { finish(terminationError); }
       }, 5_000);
       forceKillTimer.unref?.();
     };
-    const abortClone = () => {
-      const error = new Error('Git clone aborted.');
-      error.name = 'AbortError';
-      error.code = 'ABORT_ERR';
-      terminate(error);
+    const abortClone = () => terminate(createCloneAbortError());
+    const reportProgress = (data) => {
+      try {
+        options.onProgress?.(sanitizeGitError(data.toString(), githubToken));
+      } catch (error) {
+        terminate(error);
+      }
     };
     gitProcess.stdout.on('data', (data) => {
       stdout += data.toString();
-      options.onProgress?.(sanitizeGitError(data.toString(), githubToken));
+      reportProgress(data);
     });
 
     gitProcess.stderr.on('data', (data) => {
       stderr += data.toString();
-      options.onProgress?.(sanitizeGitError(data.toString(), githubToken));
+      reportProgress(data);
     });
 
     gitProcess.on('close', (code) => {
@@ -774,6 +928,7 @@ export function cloneGitHubRepository(githubUrl, destinationPath, githubToken = 
     });
 
     gitProcess.on('error', (error) => {
+      if (terminationError) return finish(terminationError);
       if (error.code === 'ENOENT') {
         finish(new Error('Git is not installed or not in PATH'));
       } else {
@@ -788,6 +943,8 @@ export function cloneGitHubRepository(githubUrl, destinationPath, githubToken = 
     }, timeoutMs);
     timeout.unref?.();
 
+    // Register immediately after spawn, then check again to close the race
+    // between the initial pre-spawn check and listener registration.
     if (options.signal?.aborted) abortClone();
     else options.signal?.addEventListener('abort', abortClone, { once: true });
   });
