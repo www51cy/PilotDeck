@@ -394,7 +394,7 @@ function MessageRowV2({
     return withProcessRows(
       <div className="group/user-msg flex w-full flex-col items-end">
         <div className={cn(
-          'min-w-0 max-w-[78%] overflow-hidden rounded-[22px] bg-sky-50 px-4 py-2.5 text-[14px] leading-relaxed text-neutral-900 ring-1 ring-sky-100 dark:bg-sky-950/60 dark:text-neutral-100 dark:ring-sky-900/60',
+          'min-w-0 max-w-[calc(78%_-_24px)] overflow-hidden rounded-[22px] bg-sky-50 px-4 py-2.5 text-[14px] leading-relaxed text-neutral-900 ring-1 ring-sky-100 dark:bg-sky-950/60 dark:text-neutral-100 dark:ring-sky-900/60',
           isEditing && 'w-full',
         )}>
           {message.isStreaming && !formattedContent ? (
