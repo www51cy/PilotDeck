@@ -889,3 +889,120 @@ describe('useChatRealtimeHandlers terminal errors', () => {
     expect(setActiveRunId).toHaveBeenLastCalledWith('run-current');
   });
 });
+
+describe('useChatRealtimeHandlers model request terminals', () => {
+  beforeEach(() => {
+    resetSessionStatusProtocolForTests();
+    mocks.listener = null;
+    mocks.sendMessage.mockReset();
+    mocks.subscribe.mockReset();
+    mocks.subscribe.mockImplementation((listener) => {
+      mocks.listener = listener;
+      return noop;
+    });
+  });
+
+  function mount(activeRunId: string) {
+    const sessionStore = createSessionStore();
+    const setClaudeStatus = vi.fn();
+    const setPilotDeckStatus = vi.fn();
+    renderHook(() => useChatRealtimeHandlers({
+      provider,
+      selectedProject: { name: 'project', fullPath: '/tmp/project' } as unknown as Project,
+      selectedSession: { id: 'web:s_test' } as unknown as ProjectSession,
+      currentSessionId: 'web:s_test',
+      setCurrentSessionId: noop,
+      setIsLoading: noop,
+      setSessionRuntimeState: noop,
+      activeRunId,
+      setActiveRunId: noop,
+      setCanAbortSession: noop,
+      setIsAborting: noop,
+      setClaudeStatus,
+      setPilotDeckStatus,
+      setTokenBudget: noop,
+      setPendingPermissionRequests: vi.fn(),
+      pendingViewSessionRef: { current: null },
+      sessionStore,
+    }));
+    return { setClaudeStatus, setPilotDeckStatus, sessionStore };
+  }
+
+  const status = (runId: string, text: string) => ({
+    sessionId: 'web:s_test', runId, provider, kind: 'status', text,
+  });
+
+  it('clears the model state when the matching request completes', () => {
+    const { setClaudeStatus, setPilotDeckStatus } = mount('run-1');
+    act(() => {
+      mocks.listener?.(status('run-1', 'model_request_started'));
+      mocks.listener?.(status('run-1', 'model_request_completed'));
+    });
+    expect(setPilotDeckStatus).toHaveBeenCalledWith(null);
+    expect(setClaudeStatus).toHaveBeenCalledWith(null);
+  });
+
+  it('clears the model state when the matching request fails', () => {
+    const { setPilotDeckStatus } = mount('run-1');
+    act(() => {
+      mocks.listener?.(status('run-1', 'model_request_started'));
+      mocks.listener?.(status('run-1', 'model_request_failed'));
+    });
+    expect(setPilotDeckStatus).toHaveBeenCalledWith(null);
+  });
+
+  it('clears retry progress owned by a model request when that request completes', () => {
+    const { setClaudeStatus, setPilotDeckStatus } = mount('run-1');
+    act(() => {
+      mocks.listener?.(status('run-1', 'model_request_started'));
+      mocks.listener?.({
+        ...status('run-1', 'Reconnecting... 1/3'),
+        retryProgress: {
+          attempt: 1,
+          maxAttempts: 3,
+          delayMs: 1000,
+          reason: 'network_error',
+          provider,
+          model: 'model-a',
+        },
+      });
+      mocks.listener?.(status('run-1', 'model_request_completed'));
+    });
+
+    expect(setPilotDeckStatus).toHaveBeenLastCalledWith(null);
+    expect(setClaudeStatus).toHaveBeenLastCalledWith(null);
+  });
+
+  it('ignores a late terminal from a superseded run', () => {
+    // The client already moved on to run-2; a late terminal for run-1 must not
+    // wipe the newer run's state.
+    const { setPilotDeckStatus } = mount('run-2');
+    act(() => {
+      mocks.listener?.(status('run-1', 'model_request_started'));
+      setPilotDeckStatus.mockClear();
+      mocks.listener?.(status('run-1', 'model_request_completed'));
+    });
+    expect(setPilotDeckStatus).not.toHaveBeenCalledWith(null);
+  });
+
+  it('does not wipe a status that already moved on to a permission wait', () => {
+    const { setPilotDeckStatus } = mount('run-1');
+    act(() => {
+      mocks.listener?.(status('run-1', 'model_request_started'));
+      mocks.listener?.({ sessionId: 'web:s_test', runId: 'run-1', provider, kind: 'permission_request', requestId: 'p1', toolName: 'bash' });
+      setPilotDeckStatus.mockClear();
+      mocks.listener?.(status('run-1', 'model_request_completed'));
+    });
+    expect(setPilotDeckStatus).not.toHaveBeenCalledWith(null);
+  });
+
+  it('does not treat an assistant stream end as a request terminal', () => {
+    const { setPilotDeckStatus } = mount('run-1');
+    act(() => {
+      mocks.listener?.(status('run-1', 'model_request_started'));
+      setPilotDeckStatus.mockClear();
+      mocks.listener?.({ sessionId: 'web:s_test', runId: 'run-1', provider, kind: 'stream_end' });
+    });
+    expect(setPilotDeckStatus).not.toHaveBeenCalledWith(null);
+  });
+});

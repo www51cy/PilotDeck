@@ -1,0 +1,4 @@
+../apps/desktop/src/notifications.ts(4,98): error TS2307: Cannot find module 'electron' or its corresponding type declarations.
+../apps/desktop/src/notifications.ts(54,39): error TS2307: Cannot find module 'electron' or its corresponding type declarations.
+../apps/desktop/src/notifications.ts(147,34): error TS7006: Parameter '_event' implicitly has an 'any' type.
+../apps/desktop/src/notifications.ts(147,42): error TS7006: Parameter 'error' implicitly has an 'any' type.

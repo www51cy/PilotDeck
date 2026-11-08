@@ -38,6 +38,7 @@ function makeSlot(overrides: Partial<SessionSlot> = {}): SessionSlot {
     lastError: null,
     total: 0,
     hasMore: false,
+    headOffset: 0,
     offset: 0,
     tokenUsage: null,
     _serverRequestGeneration: 0,

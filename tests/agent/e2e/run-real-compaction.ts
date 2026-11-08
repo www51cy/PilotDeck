@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -73,6 +74,11 @@ const history = await buildRealRepositoryHistory({
 });
 const initialSnapshot = await evaluateBudget(history.messages);
 const projectedSnapshot = await evaluateBudget(history.projectedMessages);
+assert.ok(initialSnapshot.ratio > 1, "vacuous E2E fixture: raw repository history already fits the context");
+assert.ok(
+  projectedSnapshot.ratio < initialSnapshot.ratio,
+  "micro projection did not reduce the real repository history",
+);
 
 const routerConfig = snapshot.config.router ?? {
   enabled: false,
@@ -153,6 +159,8 @@ await storage.transcript.recordTurnResult(sessionId, seedTurnId, {
   startedAt: new Date().toISOString(),
   completedAt: new Date().toISOString(),
 });
+const originalTranscriptBytes = readFileSync(storage.transcriptPath);
+const originalTranscriptSha256 = sha256(originalTranscriptBytes);
 
 const initialState = createInitialAgentSessionState(sessionId);
 initialState.messages = history.messages;
@@ -215,6 +223,12 @@ for await (const event of session.submit(
   agentEvents.push(event as unknown as Record<string, unknown>);
 }
 const firstSnapshot = session.snapshot();
+const firstProviderInputTokens = providerInputTokens(agentEvents);
+assert.ok(firstProviderInputTokens.length > 0, "the first real provider request returned no input token usage");
+assert.ok(
+  firstProviderInputTokens.every((tokens) => tokens <= targetTokens),
+  `first post-compaction provider input exceeded target ${targetTokens}: ${firstProviderInputTokens.join(",")}`,
+);
 const firstRollingSummary = firstSnapshot.messages.find(isWrappedSummaryMessage);
 assert.ok(firstRollingSummary, "the first compaction did not retain a rolling summary");
 const summaryCallsAfterFirstPass = summaryCalls;
@@ -239,6 +253,20 @@ for await (const event of session.submit(
   secondAgentEvents.push(event as unknown as Record<string, unknown>);
 }
 await router.shutdown();
+
+const secondProviderInputTokens = providerInputTokens(secondAgentEvents);
+assert.ok(secondProviderInputTokens.length > 0, "the second real provider request returned no input token usage");
+assert.ok(
+  secondProviderInputTokens.every((tokens) => tokens <= targetTokens),
+  `second post-compaction provider input exceeded target ${targetTokens}: ${secondProviderInputTokens.join(",")}`,
+);
+const finalTranscriptBytes = readFileSync(storage.transcriptPath);
+const retainedOriginalPrefix = finalTranscriptBytes.subarray(0, originalTranscriptBytes.length);
+assert.ok(
+  retainedOriginalPrefix.equals(originalTranscriptBytes),
+  "compaction changed or deleted the original transcript prefix",
+);
+assert.equal(sha256(retainedOriginalPrefix), originalTranscriptSha256);
 
 const { entries } = await readTranscript(storage.transcriptPath);
 const replay = replayTranscriptEntries(entries);
@@ -320,6 +348,16 @@ const report = {
   summaryCalls,
   summaryUsage,
   summaryInputUsageTokens: actualInputTokensFromUsage(summaryUsage),
+  providerInputTokens: {
+    first: firstProviderInputTokens,
+    second: secondProviderInputTokens,
+  },
+  originalTranscript: {
+    bytes: originalTranscriptBytes.length,
+    sha256: originalTranscriptSha256,
+    prefixPreserved: true,
+    finalBytes: finalTranscriptBytes.length,
+  },
   compactMetadata: compactMetadata as CompactBoundaryMetadata,
   compactEvents,
   agentEventTypes: agentEvents.map((event) => event.type),
@@ -377,7 +415,7 @@ async function buildRealRepositoryHistory(input: {
   }];
   let projectedMessages: CanonicalMessage[] = messages;
   let sourceFiles = 0;
-  while (sourceFiles < 240) {
+  while (sourceFiles < 320) {
     const { relativePath, content } = sourcePool[sourceFiles % sourcePool.length]!;
     sourceFiles += 1;
     const toolCallId = `real-read-${sourceFiles}`;
@@ -469,4 +507,18 @@ function budgetReport(value: TokenBudgetSnapshot): Record<string, unknown> {
     source: value.source,
     exact: value.exact,
   };
+}
+
+function providerInputTokens(events: Array<Record<string, unknown>>): number[] {
+  return events.flatMap((event) => {
+    if (event.type !== "model_event") return [];
+    const modelEvent = event.event as CanonicalModelEvent;
+    if (modelEvent.type !== "usage") return [];
+    const tokens = actualInputTokensFromUsage(modelEvent.usage);
+    return tokens === undefined ? [] : [tokens];
+  });
+}
+
+function sha256(value: Buffer): string {
+  return createHash("sha256").update(value).digest("hex");
 }

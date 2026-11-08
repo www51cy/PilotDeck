@@ -1,0 +1,26 @@
+
+ RUN  v4.1.7 /root/pilotdeck/ui
+
+ ❯ |client| src/contexts/WebSocketContext.models.test.tsx (2 tests | 1 failed) 58ms
+   × refreshes the active session message window after a close 1001 reconnect 23ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |client| src/contexts/WebSocketContext.models.test.tsx > refreshes the active session message window after a close 1001 reconnect
+AssertionError: expected "vi.fn()" to be called 1 times, but got 0 times
+ ❯ src/contexts/WebSocketContext.models.test.tsx:82:19
+     80|   await act(async () => { Socket.instances[1].onopen?.(); });
+     81|
+     82|   expect(refresh).toHaveBeenCalledTimes(1);
+       |                   ^
+     83|   expect(screen.getByTestId('message-count').textContent).toBe('2');
+     84| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)
+   Start at  12:16:04
+   Duration  1.53s (transform 157ms, setup 0ms, import 333ms, tests 58ms, environment 927ms)
+

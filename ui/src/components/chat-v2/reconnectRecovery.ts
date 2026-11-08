@@ -1,15 +1,15 @@
 import { buildSessionStatusRequestIfIdle } from '../chat/sessionStatusProtocol';
 
 export function shouldRefreshSessionOnReconnect({
-  isLoading,
-  processingSessions,
   sessionId,
 }: {
   isLoading: boolean;
   processingSessions?: Set<string>;
   sessionId: string;
 }): boolean {
-  return !(isLoading || processingSessions?.has(sessionId));
+  // Reconnect must re-align persisted history even while realtime replay resumes.
+  // The store reconciliation retains unpersisted streaming rows during refresh.
+  return Boolean(sessionId);
 }
 
 export function buildReconnectStatusMessage(sessionId: string, expectedActiveRunId: string | null) {

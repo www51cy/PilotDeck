@@ -119,6 +119,32 @@ describe('onboarding routes', () => {
     }
   });
 
+  it('matches headers case-insensitively but rejects a changed header value', async () => {
+    const onboarding = await import('./onboarding.js');
+    const record = {
+      provider: {
+        providerId: 'ollama',
+        protocol: 'openai',
+        endpoint: 'http://localhost:11434/v1',
+        headers: { 'X-Provider-Session': 'old-session' },
+      },
+      keyFingerprint: null,
+    };
+    const provider = {
+      providerId: 'ollama',
+      protocol: 'openai',
+      url: 'http://localhost:11434/v1',
+      apiKey: '',
+      headers: { 'x-provider-session': 'old-session' },
+    };
+
+    expect(onboarding.connectionTestMatchesProvider(record, provider)).toBe(true);
+    expect(onboarding.connectionTestMatchesProvider(record, {
+      ...provider,
+      headers: { 'x-provider-session': 'new-session' },
+    })).toBe(false);
+  });
+
   it('keeps a mixed-case keyless preset ID when probing and saving onboarding', async () => {
     const writePilotDeckConfig = vi.fn(async (config) => ({ config }));
     const { request } = await createOnboardingApp({ probe: vi.fn().mockResolvedValue({ ok: true }), writePilotDeckConfig });

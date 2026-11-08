@@ -22,20 +22,20 @@ describe('ChatInterfaceV2 reconnect recovery helpers', () => {
     });
   });
 
-  it('skips full refresh while the current session is processing', () => {
+  it('refreshes the bounded message window while the current session is processing', () => {
     expect(shouldRefreshSessionOnReconnect({
       isLoading: false,
       processingSessions: new Set(['session-1']),
       sessionId: 'session-1',
-    })).toBe(false);
+    })).toBe(true);
   });
 
-  it('skips full refresh while the UI is loading', () => {
+  it('refreshes the bounded message window while the UI is loading', () => {
     expect(shouldRefreshSessionOnReconnect({
       isLoading: true,
       processingSessions: new Set(),
       sessionId: 'session-1',
-    })).toBe(false);
+    })).toBe(true);
   });
 
   it('allows full refresh for inactive sessions', () => {

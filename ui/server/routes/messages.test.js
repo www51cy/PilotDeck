@@ -32,6 +32,20 @@ describe('message routes', () => {
       expect(read.mock.calls[2][0]).toMatchObject({ sessionKey: 's', projectKey: '/p', includeModelContext: true, limit: 1 });
     } finally { await new Promise(resolve => server.close(resolve)); }
   });
+  it('forwards backward pagination and derives older-history availability from prevCursor', async () => {
+    const read = vi.fn(async () => ({ messages: [], total: 5, prevCursor: '3', nextCursor: 'ignored' }));
+    vi.doMock('../pilotdeck-bridge.js', () => ({ getPilotDeckGateway: vi.fn(), isGatewayUnavailableError: () => false,
+      withPilotDeckGatewayReadRetry: operation => operation({ readSessionMessages: read }),
+    }));
+    const { default: routes } = await import('./messages.js');
+    const app = express(); app.use('/api/sessions', routes);
+    const server = app.listen(0);
+    try {
+      const response = await nativeFetch(`http://127.0.0.1:${server.address().port}/api/sessions/s/messages?projectPath=/p&limit=2&offset=3&direction=backward`);
+      expect(read).toHaveBeenCalledWith(expect.objectContaining({ limit: 2, cursor: '3', direction: 'backward' }));
+      expect(await response.json()).toMatchObject({ hasMore: true, prevCursor: '3' });
+    } finally { await new Promise(resolve => server.close(resolve)); }
+  });
   it('retains block IDs in the HTTP history returned to the browser', async () => {
     vi.doMock('../pilotdeck-bridge.js', () => ({
       getPilotDeckGateway: vi.fn(),

@@ -91,6 +91,15 @@ it('explains invalid limits and does not submit a test until corrected', () => {
   expect(p.onTest).not.toHaveBeenCalled();
 });
 
+it('places the connection test and request results on the same row', () => {
+  render(<ModelSettingsModal {...props()} initial={{...initial,supportsImage:true}} task={task('supported')} />);
+  const button = screen.getByRole('button', {name:'pilotDeckConfig.panels.models.testConnection'});
+  const text = screen.getByText('pilotDeckConfig.panels.models.modelSettings.textRequest');
+  const image = screen.getByText('pilotDeckConfig.panels.models.modelSettings.imageRequest');
+  expect(button.parentElement?.contains(text)).toBe(true);
+  expect(button.parentElement?.contains(image)).toBe(true);
+});
+
 it('keeps the draft open when saving before a test fails', async () => {
   const p = {...props(),onTest:vi.fn(async()=>({ok:false,error:'Save conflict'}))};
   render(<ModelSettingsModal {...p} saveBeforeTest />);

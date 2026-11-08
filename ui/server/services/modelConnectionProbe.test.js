@@ -49,6 +49,27 @@ describe('model connection probe request formats', () => {
     });
   }
 
+  it.each([false, true])('forwards configured provider headers on text and image probes (image=%s)', async (image) => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ choices: [{ message: { content: image ? 'red' : '1' } }] }), { status: 200 }));
+    vi.stubGlobal('fetch', fetch);
+
+    const result = await probeModelConnection({
+      protocol: 'openai',
+      baseUrl: 'https://example.test/v1',
+      apiKey: 'key',
+      model: 'test-model',
+      image,
+      headers: { 'x-opencode-session': 'gateway-main', authorization: 'Bearer provider-override' },
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0][1].headers).toMatchObject({
+      'x-opencode-session': 'gateway-main',
+      authorization: 'Bearer provider-override',
+    });
+  });
+
   it('returns the endpoint URL that passed the text probe after fallback', async () => {
     const calls = [];
     vi.stubGlobal('fetch', vi.fn(async (url) => {

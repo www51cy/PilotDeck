@@ -89,29 +89,52 @@ export class GatewayWsConnection {
   private async handleRequest(frame: WsRequestFrame): Promise<void> {
     try {
       if (frame.method === "submit_turn") {
-        const sessionKey = (frame.params as { sessionKey?: string } | undefined)?.sessionKey;
+        const params = frame.params as { sessionKey?: string; runId?: string } | undefined;
+        const sessionKey = params?.sessionKey;
         if (sessionKey) this.inFlightSessions.add(sessionKey);
         let seq = 0;
-        let lastCompleted: GatewayEvent | undefined;
+        let runId = params?.runId;
+        let lastCompleted: TurnCompletedEvent | undefined;
+        let lastTerminalError: GatewayErrorEvent | undefined;
+        let streamFailure: { error: unknown } | undefined;
         try {
-          for await (const event of this.options.gateway.submitTurn(frame.params as never)) {
-            if (event.type === "turn_completed") {
-              lastCompleted = event;
+          try {
+            for await (const event of this.options.gateway.submitTurn(frame.params as never)) {
+              if (event.runId) runId = event.runId;
+              if (event.type === "turn_completed") {
+                lastCompleted = event;
+              } else if (event.type === "error" && (!event.recoverable || event.code === "agent_aborted")) {
+                lastTerminalError = event;
+              }
+              this.ws.sendText(JSON.stringify({ type: "event", id: frame.id, seq: seq++, final: false, event }));
             }
-            this.ws.sendText(JSON.stringify({ type: "event", id: frame.id, seq: seq++, final: false, event }));
+          } catch (error) {
+            streamFailure = { error };
           }
         } finally {
           if (sessionKey) this.inFlightSessions.delete(sessionKey);
         }
-        const usage = lastCompleted?.type === "turn_completed" ? lastCompleted.usage : {};
-        const finishReason = lastCompleted?.type === "turn_completed" ? lastCompleted.finishReason : "completed";
+        const taskResult = createTaskResult({
+          sessionKey: sessionKey ?? "",
+          runId,
+          completed: lastCompleted,
+          terminalError: lastTerminalError,
+          streamFailure,
+        });
+        this.ws.sendText(
+          JSON.stringify({ type: "event", id: frame.id, seq: seq++, final: false, event: taskResult }),
+        );
         this.ws.sendText(
           JSON.stringify({
             type: "event",
             id: frame.id,
             seq,
             final: true,
-            event: { type: "turn_completed", usage, finishReason },
+            event: {
+              type: "turn_completed",
+              usage: lastCompleted?.usage ?? {},
+              finishReason: taskResult.finishReason,
+            },
           }),
         );
         return;
@@ -328,6 +351,86 @@ export class GatewayWsConnection {
     }
     return handler.call(this.options.gateway, params as never);
   }
+}
+
+type TurnCompletedEvent = Extract<GatewayEvent, { type: "turn_completed" }>;
+type GatewayErrorEvent = Extract<GatewayEvent, { type: "error" }>;
+type TaskResultEvent = Extract<GatewayEvent, { type: "task_result" }>;
+
+function createTaskResult(input: {
+  sessionKey: string;
+  runId?: string;
+  completed?: TurnCompletedEvent;
+  terminalError?: GatewayErrorEvent;
+  streamFailure?: { error: unknown };
+}): TaskResultEvent {
+  const base = {
+    type: "task_result" as const,
+    sessionKey: input.sessionKey,
+    ...(input.runId ? { runId: input.runId } : {}),
+  };
+  if (input.completed) {
+    const finishReason = input.completed.finishReason;
+    const status = finishReason === "completed"
+      ? "success"
+      : finishReason === "max_turns"
+        ? "max_turns"
+        : finishReason.startsWith("aborted")
+          ? "aborted"
+          : "failed";
+    return { ...base, status, finishReason, usage: input.completed.usage };
+  }
+  if (input.streamFailure) {
+    const error = input.streamFailure.error;
+    return {
+      ...base,
+      status: "failed",
+      finishReason: "gateway_error",
+      usage: {},
+      error: {
+        code: hasStructuredErrorCode(error) ? error.code : "gateway_request_failed",
+        message: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
+  if (input.terminalError?.code === "agent_aborted") {
+    return {
+      ...base,
+      status: "aborted",
+      finishReason: "aborted",
+      usage: {},
+      error: {
+        code: input.terminalError.code,
+        message: input.terminalError.message,
+        ...(input.terminalError.userHint ? { userHint: input.terminalError.userHint } : {}),
+      },
+    };
+  }
+  if (input.terminalError) {
+    const code = input.terminalError.code ?? "gateway_error";
+    return {
+      ...base,
+      status: "failed",
+      finishReason: code,
+      usage: {},
+      error: {
+        code,
+        message: input.terminalError.message,
+        ...(input.terminalError.userHint ? { userHint: input.terminalError.userHint } : {}),
+      },
+    };
+  }
+  return {
+    ...base,
+    status: "unknown",
+    finishReason: "missing_turn_completed",
+    usage: {},
+    error: {
+      code: "missing_turn_completed",
+      message: "Gateway event stream ended without turn_completed or a terminal error; task outcome is unknown.",
+      userHint: "Inspect the gateway and session state before retrying; do not assume the task failed.",
+    },
+  };
 }
 
 function hasStructuredErrorCode(error: unknown): error is Error & { code: string; details?: unknown } {

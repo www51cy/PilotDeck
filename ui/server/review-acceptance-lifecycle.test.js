@@ -129,6 +129,7 @@ it('persists accepted queued choices independently of execution, across reload, 
     executed.push(input.modelSelection);
     yield {type: 'input_accepted', runId: input.runId, modelSelection: input.modelSelection};
     yield {type: 'turn_completed', runId: input.runId, finishReason: 'completed'};
+    yield {type: 'task_result', sessionKey: input.sessionKey, runId: input.runId, status: 'success', finishReason: 'completed', usage: {}};
   }};
   await bridge.runChatViaGateway('M2 pending', {...queued.options, sessionId: current.sessionKey, runId: 'q-M2'}, output, 'pilotdeck', {fromQueue: true, getGateway: async () => executionGateway});
   expect(executed).toEqual([B]);

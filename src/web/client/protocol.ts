@@ -107,6 +107,14 @@ export type WebGatewayEvent = WebGatewayEventMetadata & (
   | { type: "agent_status"; event: string; detail?: Record<string, unknown> }
   | { type: "turn_completed"; usage: Record<string, number>; finishReason: string }
   | {
+      type: "task_result";
+      sessionKey: string;
+      status: import("../../gateway/protocol/types.js").GatewayTaskResultStatus;
+      finishReason: string;
+      usage: Record<string, number>;
+      error?: import("../../gateway/protocol/types.js").GatewayTaskResultError;
+    }
+  | {
       type: "error";
       message: string;
       code?: string;
@@ -346,6 +354,8 @@ export type WebReadSessionMessagesResult = {
   stream?: GatewayActiveTurnSnapshot;
   messages: import("./webMessage.js").WebMessage[];
   nextCursor?: string;
+  /** Absolute index of this backward window's head when earlier messages exist. */
+  prevCursor?: string;
   total?: number;
   tokenUsage?: Record<string, unknown>;
   session: WebSessionInfo;

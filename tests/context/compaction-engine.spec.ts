@@ -219,7 +219,7 @@ test("auto full compaction retries without protected turns when protected output
     tokenBudget,
     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
     compactionEngine: engine,
-    maxContextTokens: 100,
+    maxContextTokens: 100_000,
   });
 
   const result = await runtime.tryAutoCompact({
@@ -266,20 +266,20 @@ test("protected turns above the 60% target stay intact without emergency below 9
     },
     provider: "local",
     model_: "local-chat",
-    maxOutputTokens: 1,
+    maxOutputTokens: 4_096,
   });
   const tokenBudget = new TokenBudgetManager();
   const runtime = new DefaultContextRuntime({
     tokenBudget,
     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
     compactionEngine: engine,
-    maxContextTokens: 100,
+    maxContextTokens: 100_000,
   });
 
   const result = await runtime.tryAutoCompact({
     messages: compactFixture(),
     budgetEvaluator: (candidate) => Promise.resolve(
-      tokenBudget.snapshotFromTokens(hasCompactSummary(candidate) ? 85 : 95, 100),
+      tokenBudget.snapshotFromTokens(hasCompactSummary(candidate) ? 85_000 : 95_000, 100_000),
     ),
   });
 
@@ -343,13 +343,13 @@ test("auto full compaction keeps the best compacted result even when it still bl
     tokenBudget,
     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
     compactionEngine: engine,
-    maxContextTokens: 100,
+    maxContextTokens: 100_000,
   });
 
   const result = await runtime.tryAutoCompact({
     messages: compactFixture(),
     budgetEvaluator: (candidate) => Promise.resolve(
-      tokenBudget.snapshotFromTokens(hasToolCall(candidate, "Task") ? 130 : 120, 100),
+      tokenBudget.snapshotFromTokens(hasToolCall(candidate, "Task") ? 130_000 : 120_000, 100_000),
     ),
   });
 
@@ -560,13 +560,13 @@ test("auto full compaction summarizes older tool groups inside one user task", a
     tokenBudget,
     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
     compactionEngine: engine,
-    maxContextTokens: 100,
+    maxContextTokens: 100_000,
   });
 
   const result = await runtime.tryAutoCompact({
     messages: singleUserToolChainFixture(),
     budgetEvaluator: (candidate) => Promise.resolve(
-      tokenBudget.snapshotFromTokens(hasCompactSummary(candidate) ? 20 : 500, 100),
+      tokenBudget.snapshotFromTokens(hasCompactSummary(candidate) ? 20_000 : 500_000, 100_000),
     ),
   });
 
@@ -639,19 +639,19 @@ test("blocking auto compaction continues to full summary when micro pruning only
     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
     compactionEngine: engine,
     microCompaction: new MicroCompactionEngine({ keepLatest: 1 }),
-    maxContextTokens: 100,
+    maxContextTokens: 100_000,
   });
 
   const result = await runtime.tryAutoCompact({
     messages: singleUserToolChainFixture(),
     budgetEvaluator: (candidate) => {
       if (hasCompactSummary(candidate)) {
-        return Promise.resolve(tokenBudget.snapshotFromTokens(20, 100));
+        return Promise.resolve(tokenBudget.snapshotFromTokens(20_000, 100_000));
       }
       if (hasMicroCompactMarker(candidate)) {
-        return Promise.resolve(tokenBudget.snapshotFromTokens(85, 100));
+        return Promise.resolve(tokenBudget.snapshotFromTokens(85_000, 100_000));
       }
-      return Promise.resolve(tokenBudget.snapshotFromTokens(500, 100));
+      return Promise.resolve(tokenBudget.snapshotFromTokens(500_000, 100_000));
     },
   });
 
@@ -678,7 +678,7 @@ test("summary failures preserve the original transcript and cool down retries", 
     tokenBudget,
     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
     compactionEngine: engine,
-    maxContextTokens: 100,
+    maxContextTokens: 100_000,
   });
 
   const original = compactFixture();
@@ -687,7 +687,7 @@ test("summary failures preserve the original transcript and cool down retries", 
     messages: original,
     budgetEvaluator: (candidate) => {
       evaluated.push(candidate);
-      return Promise.resolve(tokenBudget.snapshotFromTokens(evaluated.length === 1 ? 95 : 85, 100));
+      return Promise.resolve(tokenBudget.snapshotFromTokens(evaluated.length === 1 ? 95_000 : 85_000, 100_000));
     },
   });
 
@@ -700,7 +700,7 @@ test("summary failures preserve the original transcript and cool down retries", 
     messages: original,
     budgetEvaluator: (candidate) => {
       secondEvaluated.push(candidate);
-      return Promise.resolve(tokenBudget.snapshotFromTokens(secondEvaluated.length === 1 ? 95 : 85, 100));
+      return Promise.resolve(tokenBudget.snapshotFromTokens(secondEvaluated.length === 1 ? 95_000 : 85_000, 100_000));
     },
   });
 
@@ -1175,5 +1175,5 @@ function fakeSnapshot(
   messages: CanonicalMessage[],
   tokenBudget: TokenBudgetManager,
 ): TokenBudgetSnapshot {
-  return tokenBudget.snapshotFromTokens(hasToolCall(messages, "Task") ? 200 : 20, 100);
+  return tokenBudget.snapshotFromTokens(hasToolCall(messages, "Task") ? 200_000 : 20_000, 100_000);
 }

@@ -1,0 +1,7 @@
+
+/root/pilotdeck/ui/src/components/chat-v2/ChatInterfaceV2.queue.test.tsx
+  8:1  warning  `../../utils/api` import should occur before import of `./ChatInterfaceV2`  import-x/order
+
+✖ 1 problem (0 errors, 1 warning)
+  0 errors and 1 warning potentially fixable with the `--fix` option.
+

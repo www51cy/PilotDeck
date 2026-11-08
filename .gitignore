@@ -144,11 +144,17 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 
-# Local recording / artifacts
-artifacts/
+# Local recording / artifacts. Root only: nested directories named
+# "artifacts" keep their own responsibilities.
+/artifacts/
 outputs/desktop-chrome-review/
-!src/session/artifacts/
-!src/session/artifacts/**
+
+# Disposable local scratch space. Root only.
+/tmp/
+
+# Promoted evidence under docs is a formal asset. Broad ignore patterns such
+# as *.log must not silently exclude it.
+!docs/**/evidence/**
 
 # Raw .mov source files at the assets/ root (only the derived .gif
 # README assets are tracked; the .mov originals stay local).
@@ -202,14 +208,14 @@ bun.lock
 package-lock.json
 !skills/pptx/runtime/package-lock.json
 !skills/spreadsheets/runtime/package-lock.json
+!src/context/memory/edgeclaw-memory-core/package-lock.json
 
 # Test output
 test-results/
 
-# Local test drafts (force-add intentional new tests with git add -f)
-test/
-test.ts
-*.test.ts
+# Local test drafts (root only)
+/test/
+/test.ts
 
 # Auto-Research-Skills (local-only)
 Auto-Research-Skills/

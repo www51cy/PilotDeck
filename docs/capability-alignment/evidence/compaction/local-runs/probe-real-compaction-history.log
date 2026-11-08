@@ -1,0 +1,21 @@
+{"maxContextTokens":262144,"maxOutputTokens":32768,"sourcePool":12}
+(node:7915) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"sourceFiles":20,"tokens":26106,"ratio":0.11381312779017858}
+{"sourceFiles":40,"tokens":39673,"ratio":0.17296055385044642}
+{"sourceFiles":60,"tokens":53822,"ratio":0.23464529854910715}
+{"sourceFiles":80,"tokens":73751,"ratio":0.32152884347098215}
+{"sourceFiles":100,"tokens":87318,"ratio":0.38067626953125}
+{"sourceFiles":120,"tokens":101467,"ratio":0.4423610142299107}
+{"sourceFiles":140,"tokens":121396,"ratio":0.5292445591517857}
+{"sourceFiles":160,"tokens":134963,"ratio":0.5883919852120536}
+{"sourceFiles":180,"tokens":149112,"ratio":0.6500767299107143}
+{"sourceFiles":200,"tokens":169041,"ratio":0.7369602748325893}
+{"sourceFiles":220,"tokens":182608,"ratio":0.7961077008928571}
+{"sourceFiles":240,"tokens":196757,"ratio":0.8577924455915179}
+{"sourceFiles":245,"tokens":201167,"ratio":0.8770185198102679}
+{"sourceFiles":250,"tokens":205373,"ratio":0.895355224609375}
+{"sourceFiles":255,"tokens":209921,"ratio":0.9151829310825893}
+{"sourceFiles":260,"tokens":216686,"ratio":0.9446759905133929}
+{"sourceFiles":265,"tokens":218434,"ratio":0.9522966657366071}
+{"sourceFiles":270,"tokens":224491,"ratio":0.9787030901227679}

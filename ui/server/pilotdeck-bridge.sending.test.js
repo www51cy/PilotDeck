@@ -30,6 +30,7 @@ it('serializes authenticated HTTP attribution before crossing the gateway bounda
             calls.push(JSON.parse(JSON.stringify(input)));
             yield { type: 'input_accepted', runId: input.runId };
             yield { type: 'turn_completed', runId: input.runId, finishReason: 'completed', usage: {} };
+            yield { type: 'task_result', sessionKey: input.sessionKey, runId: input.runId, status: 'success', finishReason: 'completed', usage: {} };
         },
     };
     const app = express();
@@ -71,6 +72,7 @@ it('preserves per-message attribution through delayed queue dispatch', async () 
             calls.push(input.requestContext);
             yield { type: 'input_accepted', runId: input.runId };
             yield { type: 'turn_completed', runId: input.runId, finishReason: 'completed', usage: {} };
+            yield { type: 'task_result', sessionKey: input.sessionKey, runId: input.runId, status: 'success', finishReason: 'completed', usage: {} };
         },
     };
     const requestContext = { userId: 'a'.repeat(32), deviceId: 'device-a', parentRequestId: 'request-a' };
@@ -95,6 +97,7 @@ it('shows idle input as sending, preserves concurrent input order, and removes e
             yield { type: 'input_accepted', runId: input.runId };
             if (calls.length === 1) await completion.promise;
             yield { type: 'turn_completed', runId: input.runId, finishReason: 'completed', usage: {} };
+            yield { type: 'task_result', sessionKey: input.sessionKey, runId: input.runId, status: 'success', finishReason: 'completed', usage: {} };
         },
     };
     const sid = 'web:s_sending', writer = { send: frame => frames.push(structuredClone(frame)) };
@@ -142,6 +145,7 @@ it.each([false, true])('acknowledges a retry after execution without dispatching
             calls.push(input.runId);
             yield { type: 'input_accepted', runId: input.runId };
             yield { type: 'turn_completed', runId: input.runId, finishReason: 'completed', usage: {} };
+            yield { type: 'task_result', sessionKey: input.sessionKey, runId: input.runId, status: 'success', finishReason: 'completed', usage: {} };
         },
     };
     const sid = `web:s_retry_${restart}`, writer = {send: frame => frames.push(frame)};
@@ -209,6 +213,7 @@ it.each(['general', 'PilotDeck'])('uses the new cwd for existing and new General
             reads.push({ cwd: input.workspaceCwd, report: await readFile(path.join(input.workspaceCwd, 'report.md'), 'utf8') });
             yield { type: 'input_accepted', runId: input.runId };
             yield { type: 'turn_completed', runId: input.runId, finishReason: 'completed', usage: {} };
+            yield { type: 'task_result', sessionKey: input.sessionKey, runId: input.runId, status: 'success', finishReason: 'completed', usage: {} };
         },
     };
     try {
@@ -231,4 +236,122 @@ it.each(['general', 'PilotDeck'])('uses the new cwd for existing and new General
         expect(path.dirname(root)).toBe(path.resolve(os.tmpdir()));
         await rm(root, { recursive: true, force: true });
     }
+});
+
+async function runResultScenario(buildEvents, streamError) {
+    const frames = [];
+    const sessionId = `web:s_task_result_${randomUUID()}`;
+    const gateway = {
+        async *submitTurn(input) {
+            yield { type: 'input_accepted', runId: input.runId };
+            for (const event of buildEvents(input)) yield event;
+            if (streamError) throw streamError;
+        },
+    };
+    const result = await runChatViaGateway('fixture', {
+        projectPath: '/tmp/sending-project', sessionId, runId: 'result-run',
+    }, { send: frame => frames.push(frame) }, 'pilotdeck', { getGateway: async () => gateway });
+    return { frames, result };
+}
+
+it('does not treat turn_completed as success when task_result is missing', async () => {
+    const { frames, result } = await runResultScenario(input => [
+        { type: 'turn_completed', runId: input.runId, finishReason: 'completed', usage: {} },
+    ]);
+    expect(result.sawTurnCompleted).toBe(true);
+    expect(frames.filter(frame => frame.kind === 'complete')).toEqual([
+        expect.objectContaining({ taskStatus: 'unknown', success: false, exitCode: 1, finishReason: 'task_result_unavailable' }),
+    ]);
+    expect(frames.find(frame => frame.kind === 'error')).toMatchObject({
+        code: 'task_result_unavailable', terminal: true,
+    });
+});
+
+it('rejects duplicate task_result events instead of accepting the first success', async () => {
+    const { frames } = await runResultScenario(input => [
+        { type: 'task_result', sessionKey: input.sessionKey, runId: input.runId, status: 'success', finishReason: 'completed', usage: {} },
+        { type: 'task_result', sessionKey: input.sessionKey, runId: input.runId, status: 'success', finishReason: 'completed', usage: {} },
+    ]);
+    expect(frames.filter(frame => frame.kind === 'complete')).toEqual([
+        expect.objectContaining({ taskStatus: 'unknown', success: false, exitCode: 1 }),
+    ]);
+    expect(frames.some(frame => frame.kind === 'complete' && frame.success === true)).toBe(false);
+});
+
+it('uses max_turns from task_result as a non-success outcome', async () => {
+    const { frames } = await runResultScenario(input => [
+        { type: 'turn_completed', runId: input.runId, finishReason: 'max_turns', usage: {} },
+        { type: 'task_result', sessionKey: input.sessionKey, runId: input.runId, status: 'max_turns', finishReason: 'max_turns', usage: {} },
+    ]);
+    expect(frames.filter(frame => frame.kind === 'complete')).toEqual([
+        expect.objectContaining({ taskStatus: 'max_turns', success: false, exitCode: 1, finishReason: 'max_turns' }),
+    ]);
+});
+
+it('preserves an authoritative result when transport fails afterwards', async () => {
+    const { frames } = await runResultScenario(input => [
+        { type: 'task_result', sessionKey: input.sessionKey, runId: input.runId, status: 'success', finishReason: 'completed', usage: {} },
+    ], new Error('connection closed after result'));
+    expect(frames.filter(frame => frame.kind === 'complete')).toEqual([
+        expect.objectContaining({ taskStatus: 'success', success: true, exitCode: 0 }),
+    ]);
+    expect(frames.some(frame => frame.kind === 'error')).toBe(false);
+});
+
+it('reports unknown rather than failure when transport fails before task_result', async () => {
+    const { frames } = await runResultScenario(() => [], new Error('connection closed before result'));
+    expect(frames.filter(frame => frame.kind === 'complete')).toEqual([
+        expect.objectContaining({ taskStatus: 'unknown', success: false, exitCode: 1 }),
+    ]);
+    expect(frames.find(frame => frame.kind === 'error')?.userHint).toContain('do not retry blindly');
+});
+
+it('accepts a valid task_result without requiring turn_completed', async () => {
+    const { frames, result } = await runResultScenario(input => [
+        { type: 'task_result', sessionKey: input.sessionKey, runId: input.runId, status: 'success', finishReason: 'completed', usage: {} },
+    ]);
+    expect(result.sawTurnCompleted).toBe(false);
+    expect(frames.filter(frame => frame.kind === 'complete')).toEqual([
+        expect.objectContaining({ taskStatus: 'success', success: true, exitCode: 0 }),
+    ]);
+});
+
+it('rejects mismatched and malformed task_result events', async () => {
+    const invalidResults = [
+        input => ({ type: 'task_result', sessionKey: 'web:s_other', runId: input.runId, status: 'success', finishReason: 'completed', usage: {} }),
+        input => ({ type: 'task_result', sessionKey: input.sessionKey, runId: 'other-run', status: 'success', finishReason: 'completed', usage: {} }),
+        input => ({ type: 'task_result', sessionKey: input.sessionKey, runId: input.runId, status: 'done', finishReason: 'completed', usage: {} }),
+        input => ({ type: 'task_result', sessionKey: input.sessionKey, runId: input.runId, status: 'success', finishReason: '', usage: {} }),
+        input => ({ type: 'task_result', sessionKey: input.sessionKey, runId: input.runId, status: 'success', finishReason: 'completed', usage: [] }),
+    ];
+    for (const invalidResult of invalidResults) {
+        const { frames } = await runResultScenario(input => [invalidResult(input)]);
+        expect(frames.filter(frame => frame.kind === 'complete')).toEqual([
+            expect.objectContaining({ taskStatus: 'unknown', success: false, exitCode: 1 }),
+        ]);
+        expect(frames.some(frame => frame.kind === 'complete' && frame.success === true)).toBe(false);
+    }
+});
+
+it('does not emit the final result twice when the writer fails after delivery', async () => {
+    const frames = [];
+    let writerFailed = false;
+    const gateway = {
+        async *submitTurn(input) {
+            yield { type: 'task_result', sessionKey: input.sessionKey, runId: input.runId, status: 'success', finishReason: 'completed', usage: {} };
+        },
+    };
+    await runChatViaGateway('fixture', {
+        projectPath: '/tmp/sending-project', sessionId: `web:s_writer_${randomUUID()}`, runId: 'result-run',
+    }, {
+        send(frame) {
+            frames.push(frame);
+            if (frame.kind === 'complete' && !writerFailed) {
+                writerFailed = true;
+                throw new Error('writer closed after complete');
+            }
+        },
+    }, 'pilotdeck', { getGateway: async () => gateway });
+    expect(writerFailed).toBe(true);
+    expect(frames.filter(frame => frame.kind === 'complete')).toHaveLength(1);
 });

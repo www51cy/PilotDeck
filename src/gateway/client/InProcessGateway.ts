@@ -1958,6 +1958,21 @@ function mapAgentEventForTurn(event: AgentEvent, runId: string): GatewayEvent[] 
       return [{ type: "steer_unapplied", itemId: event.itemId, reason: event.reason }];
     case "model_request_started":
       return [{ type: "model_request_started", model: event.model, provider: event.provider }];
+    case "model_request_completed":
+      return [{
+        type: "model_request_completed",
+        model: event.model,
+        provider: event.provider,
+        ...(event.finishReason ? { finishReason: event.finishReason } : {}),
+      }];
+    case "model_request_failed":
+      return [{
+        type: "model_request_failed",
+        model: event.model,
+        provider: event.provider,
+        message: event.error.message,
+        code: event.error.code,
+      }];
     case "model_event":
       return mapModelEvent(event.event, runId).map(frame => event.blockId
         ? { ...frame, blockId: event.blockId } : frame);

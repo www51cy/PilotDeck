@@ -1,0 +1,2 @@
+$ bun run --feature=EXTRACT_MEMORIES src/entrypoints/cli.tsx -p "只调用一次 Bash 工具执行 pwd，不要直接回答。" --output-format json --tools Bash --allowedTools "Bash(pwd)" --max-turns "1" --no-session-persistence
+error: script "start" exited with code 1

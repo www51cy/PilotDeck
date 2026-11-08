@@ -6,6 +6,7 @@ import { createErrorDiagnostics, handleUnexpectedError } from './middleware/erro
 import { createWorkspaceFileUploadHandler, createWorkspaceUploadCheckHandler } from './services/workspaceFileUpload.js';
 import { createBackgroundSessionForwarder, createSessionActivityRegistry } from './session-activity.js';
 import { createSessionNotificationRegistry } from './session-notifications.js';
+import { replyToPing } from './session-heartbeat.js';
 import { notifySessionAttention } from './services/notification-orchestrator.js';
 import '../../scripts/check-node-runtime.mjs';
 // Install global fetch proxy (PILOTDECK_PROXY / HTTPS_PROXY) before any network calls
@@ -2405,7 +2406,13 @@ function handleChatConnection(ws, request) {
                 data.item = { ...data.item, options: { ...data.item?.options, requestContext } };
             }
 
-            if (data.type === 'ping') return;
+            if (data.type === 'ping') {
+                // Per-connection ACK only; see session-heartbeat.js. A browser
+                // whose pings go unanswered treats the socket as half-open and
+                // reconnects, so this must not be silently dropped.
+                replyToPing(ws, data);
+                return;
+            }
             if (data.type === 'get-session-activity') {
                 writer.send({type: 'session-activity-snapshot', scope: String(userId ?? 'local'), activities: sessionActivityRegistry.snapshot(userId)});
                 return;

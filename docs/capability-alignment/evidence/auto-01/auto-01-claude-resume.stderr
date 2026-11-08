@@ -1,0 +1,1 @@
+$ bun run --feature=EXTRACT_MEMORIES src/entrypoints/cli.tsx -r "1e7b8861-178a-46b3-8158-fc8a0a67e201" -p "这是显式恢复测试。只回复 RESUMED，不要调用任何工具。" --output-format json --tools  --max-turns "1"

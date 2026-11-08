@@ -90,6 +90,14 @@ export type GatewayOutboundAttachment = {
 
 export type TurnUsage = CanonicalUsage;
 
+export type GatewayTaskResultStatus = "success" | "max_turns" | "aborted" | "failed" | "unknown";
+
+export type GatewayTaskResultError = {
+  code: string;
+  message: string;
+  userHint?: string;
+};
+
 export type GatewaySubmitTurnInput = {
   /** Opaque diagnostics supplied by an authenticated host; never authorization. */
   requestContext?: Pick<import("../../network/requestContext.js").RequestContext,
@@ -185,6 +193,12 @@ export type GatewayEvent = GatewayTurnScopedEventMetadata & (
   | { type: "steer_applied"; itemId: string; message: CanonicalMessage }
   | { type: "steer_unapplied"; itemId: string; reason: "turn_ended" }
   | { type: "model_request_started"; model?: string; provider?: string }
+  /**
+   * Terminal state of the request announced by `model_request_started`.
+   * Correlated by run/turn; it is not a per-call id yet.
+   */
+  | { type: "model_request_completed"; model?: string; provider?: string; finishReason?: string }
+  | { type: "model_request_failed"; model?: string; provider?: string; message?: string; code?: string }
   | {
       type: "model_selection_changed";
       provider: string;
@@ -274,6 +288,15 @@ export type GatewayEvent = GatewayTurnScopedEventMetadata & (
       state: "ok" | "warning" | "blocking";
     }
   | { type: "turn_completed"; usage: TurnUsage; finishReason: AgentTurnResult["stopReason"] | string }
+  | {
+      /** Authoritative task outcome derived from real events; sent once before the synthetic final frame. */
+      type: "task_result";
+      sessionKey: string;
+      status: GatewayTaskResultStatus;
+      finishReason: string;
+      usage: TurnUsage;
+      error?: GatewayTaskResultError;
+    }
   | { type: "agent_status"; event: string; detail?: Record<string, unknown> }
   | {
       type: "error";

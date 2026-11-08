@@ -115,15 +115,39 @@ export async function readWebSessionMessages(
 
   const offset = parseCursor(input.cursor);
   const limit = input.limit ?? allMessages.length;
-  const sliceEnd = limit === 0 ? allMessages.length : offset + limit;
-  const slice = allMessages.slice(offset, sliceEnd);
+  const backward = input.direction === "backward";
+  const sliceEnd = backward
+    ? input.cursor === undefined
+      ? allMessages.length
+      : Math.min(offset, allMessages.length)
+    : limit === 0
+      ? allMessages.length
+      : offset + limit;
+  const rawSliceStart = backward
+    ? limit === 0
+      ? 0
+      : Math.max(0, sliceEnd - limit)
+    : offset;
+  // A backward page should begin on a user prompt. The client anchors each
+  // turn's process block ("已处理 …") to that turn's user message; when a page
+  // starts mid-turn, the block has no anchor in the window and is rendered
+  // above every visible message. Backtrack to the closest user prompt, bounded
+  // so a single very long turn cannot produce an unbounded page.
+  const sliceStart = backward && limit > 0
+    ? alignBackwardSliceToUserPrompt(allMessages, rawSliceStart, limit)
+    : rawSliceStart;
+  const slice = allMessages.slice(sliceStart, sliceEnd);
 
   return {
     ...(input.includeModelContext ? { modelContext } : {}),
     messages: slice,
     nextCursor:
-      input.limit && offset + slice.length < allMessages.length
+      !backward && input.limit && offset + slice.length < allMessages.length
         ? String(offset + slice.length)
+        : undefined,
+    prevCursor:
+      backward && input.limit && sliceStart > 0
+        ? String(sliceStart)
         : undefined,
     total: allMessages.length,
     tokenUsage: tokenUsageFromTranscript(entries, options),
@@ -1305,4 +1329,25 @@ function readToolPresentationData(raw: unknown): Record<string, unknown> | undef
 function isSearchToolName(name: unknown): boolean {
   const normalized = typeof name === "string" ? name.toLowerCase() : "";
   return normalized === "grep" || normalized === "glob";
+}
+
+/** A user prompt starts a turn; tool results are also role "user" but are not. */
+function isUserPromptMessage(message: WebMessage | undefined): boolean {
+  return message?.role === "user" && message.kind === "text";
+}
+
+const USER_PROMPT_ALIGN_BACKTRACK_FACTOR = 4;
+
+function alignBackwardSliceToUserPrompt(
+  messages: WebMessage[],
+  start: number,
+  limit: number,
+): number {
+  if (start <= 0) return 0;
+  if (isUserPromptMessage(messages[start])) return start;
+  const minIndex = Math.max(0, start - limit * USER_PROMPT_ALIGN_BACKTRACK_FACTOR);
+  for (let index = start - 1; index >= minIndex; index -= 1) {
+    if (isUserPromptMessage(messages[index])) return index;
+  }
+  return start;
 }

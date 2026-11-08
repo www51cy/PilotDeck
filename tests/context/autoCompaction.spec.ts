@@ -42,10 +42,13 @@ test("auto-compaction summarizes earlier work instead of deleting it", async () 
     tokenBudget,
     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
     compactionEngine: engine,
-    maxContextTokens: 1,
+    maxContextTokens: 100_000,
   });
 
-  const result = await runtime.tryAutoCompact({ messages });
+  const result = await runtime.tryAutoCompact({
+    messages,
+    budgetEvaluator: () => Promise.resolve(tokenBudget.snapshotFromTokens(95_000, 100_000)),
+  });
 
   assert.equal(result.type, "compacted");
   assert.equal(result.tier, "emergency");
@@ -200,13 +203,13 @@ test("protected early tool turns do not bypass emergency compaction", async () =
     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
     compactionEngine: engine,
     microCompaction: new MicroCompactionEngine(),
-    maxContextTokens: 100,
+    maxContextTokens: 100_000,
   });
 
   const result = await runtime.tryAutoCompact({
     messages,
     budgetEvaluator: (candidate) => Promise.resolve(
-      tokenBudget.snapshotFromTokens(textFrom(candidate).includes("[CONTEXT COMPACTION - REFERENCE ONLY]") ? 70 : 120, 100),
+      tokenBudget.snapshotFromTokens(textFrom(candidate).includes("[CONTEXT COMPACTION - REFERENCE ONLY]") ? 70_000 : 120_000, 100_000),
     ),
   });
 
@@ -233,12 +236,12 @@ test("80% pre-summary prune can stay below 90% without calling the summary model
     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
     compactionEngine: engine,
     microCompaction: new MicroCompactionEngine(),
-    maxContextTokens: 100,
+    maxContextTokens: 100_000,
   });
   const result = await runtime.tryAutoCompact({
     messages: largeToolResultFixture(),
     budgetEvaluator: (candidate) => Promise.resolve(
-      tokenBudget.snapshotFromTokens(hasMicroMarker(candidate) ? 84 : 86, 100),
+      tokenBudget.snapshotFromTokens(hasMicroMarker(candidate) ? 76_000 : 86_000, 100_000),
     ),
   });
 
@@ -265,14 +268,14 @@ test("summary runs before post-summary snip and keeps the compact checkpoint", a
     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
     compactionEngine: engine,
     snipEngine: new SnipEngine({ keepHeadTurns: 0, keepTailTurns: 1 }),
-    maxContextTokens: 100,
+    maxContextTokens: 100_000,
   });
   const result = await runtime.tryAutoCompact({
     messages: textMessages(...Array.from({ length: 24 }, (_, index) => `turn-${index}`)),
     budgetEvaluator: (candidate) => Promise.resolve(
       tokenBudget.snapshotFromTokens(
-        hasSnipBoundary(candidate) ? 55 : hasCompactSummary(candidate) ? 95 : 100,
-        100,
+        hasSnipBoundary(candidate) ? 55_000 : hasCompactSummary(candidate) ? 95_000 : 100_000,
+        100_000,
       ),
     ),
   });
@@ -282,7 +285,7 @@ test("summary runs before post-summary snip and keeps the compact checkpoint", a
   assert.equal(summaryRequests.length, 1);
   assert.equal(hasSnipBoundary(result.messages), true);
   assert.match(textFrom(result.messages), /Keep the checkpoint/);
-  assert.equal(result.result?.targetPostTokens, 60);
+  assert.equal(result.result?.targetPostTokens, 60_000);
 });
 
 test("targeted snip can prune tool cycles inside one user task", () => {
@@ -540,7 +543,7 @@ test("rolling-summary replacement with no live history succeeds without emergenc
     tokenBudget,
     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
     compactionEngine: engine,
-    maxContextTokens: 100,
+    maxContextTokens: 100_000,
   });
 
   const result = await runtime.tryAutoCompact({
@@ -549,8 +552,8 @@ test("rolling-summary replacement with no live history succeeds without emergenc
       content: [{ type: "text", text: "Required current request" }],
     }],
     budgetEvaluator: (candidate) => Promise.resolve(tokenBudget.snapshotFromTokens(
-      textFrom(candidate).includes("Replacement checkpoint") ? 50 : 95,
-      100,
+      textFrom(candidate).includes("Replacement checkpoint") ? 50_000 : 95_000,
+      100_000,
     )),
   });
 
@@ -633,12 +636,12 @@ test("emergency compaction reports an explicit overflow instead of permitting an
     tokenBudget,
     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
     compactionEngine: engine,
-    maxContextTokens: 100,
+    maxContextTokens: 100_000,
   });
 
   const result = await runtime.tryAutoCompact({
     messages: textMessages(...Array.from({ length: 20 }, (_, index) => `turn-${index}`)),
-    budgetEvaluator: () => Promise.resolve(tokenBudget.snapshotFromTokens(120, 100)),
+    budgetEvaluator: () => Promise.resolve(tokenBudget.snapshotFromTokens(120_000, 100_000)),
   });
 
   assert.equal(result.type, "compacted");
@@ -694,14 +697,14 @@ test("emergency summary remains persistable after a later head truncation", asyn
     tokenBudget,
     autoCompactionPolicy: new AutoCompactionPolicy({ tokenBudget }),
     compactionEngine: engine,
-    maxContextTokens: 100,
+    maxContextTokens: 100_000,
   });
 
   const result = await runtime.tryAutoCompact({
     messages: textMessages(...Array.from({ length: 20 }, (_, index) => `turn-${index}`)),
     // Keep the simulated routed request in emergency territory after the
     // summary so the emergency path continues through head truncation.
-    budgetEvaluator: () => Promise.resolve(tokenBudget.snapshotFromTokens(95, 100)),
+    budgetEvaluator: () => Promise.resolve(tokenBudget.snapshotFromTokens(95_000, 100_000)),
   });
 
   assert.equal(result.type, "compacted");
@@ -740,7 +743,14 @@ function hasCompactSummary(messages: CanonicalMessage[]): boolean {
 }
 
 function hasMicroMarker(messages: CanonicalMessage[]): boolean {
-  return textFrom(messages).includes("[Old tool result content compacted]");
+  const marker = "[Old tool result content compacted]";
+  return messages.some((message) => message.content.some((block) => {
+    if (block.type === "text") return block.text.includes(marker);
+    if (block.type === "tool_result") {
+      return block.content.some((item) => item.type === "text" && item.text.includes(marker));
+    }
+    return false;
+  }));
 }
 
 function hasSnipBoundary(messages: CanonicalMessage[]): boolean {

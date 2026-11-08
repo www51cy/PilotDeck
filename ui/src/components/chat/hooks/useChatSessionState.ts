@@ -109,8 +109,11 @@ export function shouldRenderPendingBubble(
  * plain tail slice would then discard the prompt, leaving the live-process
  * grouping code without a visible row to attach the collapsed process to.
  *
- * Preserve the most recent user message by replacing the oldest tail entry,
- * so the render cap remains unchanged while the active turn keeps its anchor.
+ * Extend the window backwards to the turn's prompt. Never pull the prompt out
+ * of order: a prompt rendered at index 0 with newer rows below it appears to
+ * jump above its own turn header ("my message ran to the top of the previous
+ * conversation"), because that header is derived from the turn the prompt
+ * belongs to.
  */
 export function selectVisibleMessages(
   messages: ChatMessage[],
@@ -118,8 +121,7 @@ export function selectVisibleMessages(
 ): ChatMessage[] {
   if (messages.length <= visibleMessageCount) return messages;
 
-  const tail = messages.slice(-visibleMessageCount);
-  const tailStartIndex = messages.length - tail.length;
+  const windowStart = Math.max(0, messages.length - visibleMessageCount);
   let latestUserIndex = -1;
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     if (messages[index]?.type === 'user') {
@@ -128,13 +130,10 @@ export function selectVisibleMessages(
     }
   }
 
-  if (latestUserIndex < 0 || latestUserIndex >= tailStartIndex) {
-    return tail;
+  if (latestUserIndex < 0 || latestUserIndex >= windowStart) {
+    return messages.slice(windowStart);
   }
-  if (tail.length <= 1) {
-    return [messages[latestUserIndex]];
-  }
-  return [messages[latestUserIndex], ...tail.slice(1)];
+  return messages.slice(latestUserIndex);
 }
 
 export function getStreamContentKey(messages: ChatMessage[]): string {
@@ -323,6 +322,11 @@ export function useChatSessionState({
   const [isLoadingMoreMessages] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [totalMessages, setTotalMessages] = useState(0);
+  // Number of raw server message records currently loaded into the window.
+  // `totalMessages` is also a count of raw records, so the two share a unit.
+  // `chatMessages.length` is NOT comparable to either: it is the merged
+  // UI-message count (one turn renders as one message).
+  const [loadedMessageCount, setLoadedMessageCount] = useState(0);
   const [canAbortSession, setCanAbortSession] = useState(false);
   const [isAborting, setIsAborting] = useState(false);
   const [tokenBudget, setTokenBudget] = useState<Record<string, unknown> | null>(null);
@@ -592,7 +596,10 @@ export function useChatSessionState({
         if (!slot || slot.serverMessages.length === 0 || activeScrollKeyRef.current !== requestScrollKey) return false;
         setHasMoreMessages(slot.hasMore);
         setTotalMessages(slot.total);
-        setVisibleMessageCount((prev) => prev + MESSAGES_PER_PAGE);
+        setLoadedMessageCount(slot.serverMessages.length);
+        // Loading earlier pages is an explicit user action: render everything
+        // that is loaded instead of only a fixed count of records.
+        setVisibleMessageCount(Infinity);
         return true;
       } finally {
         isLoadingMoreRef.current = false;
@@ -742,6 +749,7 @@ export function useChatSessionState({
       messagesOffsetRef.current = 0;
       setHasMoreMessages(false);
       setTotalMessages(0);
+      setLoadedMessageCount(0);
       setTokenBudget(null);
       lastLoadedSessionKeyRef.current = null;
       return;
@@ -800,6 +808,7 @@ export function useChatSessionState({
     messagesOffsetRef.current = 0;
     setHasMoreMessages(false);
     setTotalMessages(0);
+    setLoadedMessageCount(0);
     setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
     setAllMessagesLoaded(false);
     allMessagesLoadedRef.current = false;
@@ -834,26 +843,22 @@ export function useChatSessionState({
 
     // Fetch from server → store updates → chatMessages re-derives automatically
     setIsLoadingSessionMessages(true);
-    // Intentionally fetch the WHOLE transcript on session entry: PilotDeck's
-    // `readSessionMessages` slices in jsonl-forward order (`allMessages.slice(
-    // offset, offset+limit)`), but the ui-side `fetchMore` path that handles
-    // scroll-to-top assumes "more older messages" semantics and prepends the
-    // returned batch to serverMessages. The two are incompatible, so paging
-    // here produces a reordered transcript (the second-page batch — actually
-    // the *newer* tail messages — gets prepended in front of the older ones
-    // already on screen). Sessions are typically well under a few hundred
-    // messages, so fetching everything is fine.
+    // Open on the latest bounded window. Scrolling up asks the same backward
+    // endpoint for older pages; search and explicit "load all" retain the
+    // full-history path below.
     sessionStore.fetchFromServer(selectedSession.id, {
       provider: 'pilotdeck',
       projectName: selectedProject.name,
       projectPath: selectedProject.fullPath || selectedProject.path || '',
       ...sessionRequestParams,
-      limit: null,
+      limit: INITIAL_VISIBLE_MESSAGES,
       offset: 0,
+      direction: 'backward',
     }).then(slot => {
       if (slot) {
         setHasMoreMessages(slot.hasMore);
         setTotalMessages(slot.total);
+        setLoadedMessageCount(slot.serverMessages.length);
         if (slot.tokenUsage) setTokenBudget(slot.tokenUsage as Record<string, unknown>);
         setSessionLoadError(slot.status === 'error'
           ? slot.lastError || 'Unable to load conversation messages.'
@@ -975,6 +980,7 @@ export function useChatSessionState({
             if (slot) {
               setHasMoreMessages(false);
               setTotalMessages(slot.total);
+              setLoadedMessageCount(slot.serverMessages.length);
               messagesOffsetRef.current = slot.total;
               setVisibleMessageCount(Infinity);
               setAllMessagesLoaded(true);
@@ -1198,6 +1204,7 @@ export function useChatSessionState({
       if (slot) {
         setHasMoreMessages(false);
         setTotalMessages(slot.total);
+        setLoadedMessageCount(slot.serverMessages.length);
         messagesOffsetRef.current = slot.total;
         setVisibleMessageCount(Infinity);
         setAllMessagesLoaded(true);
@@ -1251,6 +1258,7 @@ export function useChatSessionState({
     isLoadingMoreMessages,
     hasMoreMessages,
     totalMessages,
+    loadedMessageCount,
     canAbortSession,
     setCanAbortSession,
     isAborting,

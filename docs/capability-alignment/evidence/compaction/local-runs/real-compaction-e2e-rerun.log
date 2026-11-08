@@ -1,0 +1,18 @@
+(node:3834) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: real repository history only reached ratio 0.858
+    at buildRealRepositoryHistory (file:///root/pilotdeck/dist/tests/agent/e2e/run-real-compaction.js:345:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async file:///root/pilotdeck/dist/tests/agent/e2e/run-real-compaction.js:33:17 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '=='
+}
+
+Node.js v22.13.0

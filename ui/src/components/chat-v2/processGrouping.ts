@@ -72,6 +72,13 @@ type MessageTurn = {
   start: number;
   end: number;
   summary: ActivitySummaryAttachment | null;
+  /**
+   * Whether this turn begins with the user prompt that started it. A window
+   * loaded by message-count paging can begin mid-turn; such a turn has no
+   * prompt to anchor its "processed" header to, so the header is dropped
+   * instead of being pinned above unrelated messages.
+   */
+  anchored: boolean;
 };
 
 type ActivitySummaryAttachment = {
@@ -163,6 +170,10 @@ function createMessageTurns(messages: ChatMessage[]): MessageTurn[] {
     start,
     end: starts[index + 1] ?? messages.length,
     summary: null,
+    // `starts[0]` is forced to 0 when the window opens mid-turn. Everything
+    // derived from this turn (run duration, process header) is untrustworthy
+    // in that case, so downstream renderers share this single flag.
+    anchored: messages[start]?.type === 'user',
   }));
 }
 
@@ -822,18 +833,14 @@ export function buildRenderableMessageItems(
         startIndex: turn.start,
         endIndex: getTurnEndIndex(messages, turn),
       };
-      const turnStartMessage = messages[turn.start];
       const turnStartItem = itemsByIndex.get(turn.start);
-      if (turnStartMessage?.type === 'user' && turnStartItem) {
+      if (turn.anchored && turnStartItem) {
         turnStartItem.afterRunAttachment = runAttachment;
-      } else {
-        const firstVisibleItem = items.find((item) =>
-          item.originalIndex >= turn.start && item.originalIndex < turn.end,
-        );
-        if (firstVisibleItem) {
-          firstVisibleItem.beforeRunAttachment = runAttachment;
-        }
       }
+      // An unanchored turn (window opened mid-turn) has no opening user
+      // message, so the run attachment is dropped instead of being pinned
+      // above unrelated messages. An orphan "processed" block at the top of
+      // the window reads as if it belonged to the wrong turn.
     }
 
     const segments = collectCompletedProcessSegments(messages, turn);
@@ -951,6 +958,13 @@ export function foldCompletedTurns(
     const hasFinal = last?.type === 'assistant' && !last.isThinking && !last.isToolUse
       && !last.isSubagentContainer && !last.isTaskNotification
       && (Boolean(last.content?.trim()) || Boolean(last.artifacts?.length));
+    if (!turn.anchored) {
+      // A page boundary cut this turn open (see `createMessageTurns`). Its
+      // "processed" header would be pinned above the first visible message,
+      // which belongs to a different turn, so render the rows as-is.
+      result.push(...turnItems);
+      continue;
+    }
     if ((isAssistantWorking && turnIndex === turns.length - 1) || abnormal || !hasFinal || !finalItem) {
       result.push(...turnItems);
       continue;

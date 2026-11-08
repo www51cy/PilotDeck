@@ -2,6 +2,7 @@ import { createPortal } from "react-dom";
 import ContextPanel, { type ContextTarget } from '../chat-context/ContextPanel';
 import { useFloatingPanel } from "../ui/useFloatingPanel";
 import { useModelMenuLayout } from "./useModelMenuLayout";
+import { formatGitStatusChip, useGitStatusSummary } from "./useGitStatusSummary";
 import { useTranslation } from "react-i18next";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type {
@@ -546,6 +547,8 @@ export default function ComposerV2({
   queueTray,
 }: ComposerV2Props) {
   const { t } = useTranslation("chat");
+  const gitStatusSummary = useGitStatusSummary(projectKey, isLoading);
+  const gitStatusChip = formatGitStatusChip(gitStatusSummary);
   const reasoningLabels = useMemo(() => new Map<number, string>([
     [0.4, t("input.models.reasoningLevels.low", { defaultValue: "Low" }) as string],
     [0.6, t("input.models.reasoningLevels.medium", { defaultValue: "Medium" }) as string],
@@ -978,6 +981,35 @@ export default function ComposerV2({
               )}
             >
               <input {...getInputProps()} />
+              {gitStatusChip ? (
+                <div className="mb-1.5 flex min-h-[18px] items-center px-1 text-[11px] leading-none">
+                  <span
+                    data-testid="composer-git-status"
+                    title={[
+                      gitStatusSummary?.branch,
+                      t("input.gitStatus.dirty", {
+                        count: gitStatusSummary?.dirty ?? 0,
+                        defaultValue: "{{count}} uncommitted file(s)",
+                      }),
+                      (gitStatusSummary?.ahead ?? 0) > 0 || (gitStatusSummary?.behind ?? 0) > 0
+                        ? t("input.gitStatus.remote", {
+                          ahead: gitStatusSummary?.ahead ?? 0,
+                          behind: gitStatusSummary?.behind ?? 0,
+                          defaultValue: "↑{{ahead}} ↓{{behind}} vs upstream",
+                        })
+                        : null,
+                    ].filter(Boolean).join(" · ")}
+                    className={cn(
+                      "inline-flex min-w-0 max-w-full items-center gap-1 truncate rounded-md border px-1.5 py-1 font-mono",
+                      (gitStatusSummary?.dirty ?? 0) > 0
+                        ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200"
+                        : "border-transparent bg-transparent text-neutral-500 dark:text-neutral-400",
+                    )}
+                  >
+                    {gitStatusChip}
+                  </span>
+                </div>
+              ) : null}
               <input
                 ref={directoryInputRef}
                 type="file"

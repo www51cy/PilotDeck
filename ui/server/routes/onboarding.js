@@ -123,6 +123,16 @@ function canonicalEndpoint(value) {
   }
 }
 function keyFingerprint(apiKey) { return createHmac('sha256', testKeySecret).update(apiKey).digest(); }
+function normalizeProviderHeaders(value) {
+  if (value === undefined) return {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || Object.values(value).some(header => typeof header !== 'string')) return null;
+  try {
+    return Object.fromEntries(new Headers(value).entries());
+  } catch {
+    return null;
+  }
+}
 function sameKey(fingerprint, apiKey) {
   const candidate = keyFingerprint(apiKey);
   return fingerprint?.length === candidate.length && timingSafeEqual(fingerprint, candidate);
@@ -140,6 +150,9 @@ export function connectionTestMatchesProvider(record, provider) {
   const endpoint = canonicalEndpoint(text(provider?.url) || presetEndpoint);
   const testedEndpoint = canonicalEndpoint(record?.provider?.endpoint);
   if (!record || !provider || !endpoint || !testedEndpoint || record.provider.protocol !== provider.protocol || testedEndpoint !== endpoint) return false;
+  const testedHeaders = normalizeProviderHeaders(record.provider.headers);
+  const currentHeaders = normalizeProviderHeaders(provider.headers);
+  if (!testedHeaders || !currentHeaders || JSON.stringify(testedHeaders) !== JSON.stringify(currentHeaders)) return false;
   return presetIdFor(provider.providerId) === 'ollama' || sameKey(record.keyFingerprint, text(provider.apiKey));
 }
 function hasOnlyKeys(value, keys) {
@@ -281,9 +294,11 @@ export function prepareConnectionTest(body, userId, allowPresetEndpointOverride 
   const models = [...new Set(requestedModels.filter(Boolean))];
   const retry = retryPolicy(body?.retryPolicy);
   const apiKey = text(body?.apiKey);
-  if (!hasOnlyKeys(body, ['providerId', 'protocol', 'endpoint', 'apiKey', 'models', 'retryPolicy']) || !provider || !models.length || models.length !== requestedModels.length || models.length > MAX_MODELS_PER_TEST || !retry || (presetIdFor(provider.providerId) !== 'ollama' && !apiKey)) {
-    throw Object.assign(new Error('providerId, models, retryPolicy, and the required API key are invalid.'), { status: 400, code: 'INVALID_REQUEST' });
+  const headers = normalizeProviderHeaders(body?.headers);
+  if (!hasOnlyKeys(body, ['providerId', 'protocol', 'endpoint', 'apiKey', 'models', 'retryPolicy', 'headers']) || !provider || !models.length || models.length !== requestedModels.length || models.length > MAX_MODELS_PER_TEST || !retry || !headers || (presetIdFor(provider.providerId) !== 'ollama' && !apiKey)) {
+    throw Object.assign(new Error('providerId, models, retryPolicy, headers, and the required API key are invalid.'), { status: 400, code: 'INVALID_REQUEST' });
   }
+  provider.headers = headers;
   const release = probeInFlight.tryAcquire(userId);
   if (!release) {
     throw Object.assign(new Error('Too many connection tests are already running.'), { status: 429, code: 'TEST_BUSY' });
@@ -296,7 +311,7 @@ export function prepareConnectionTest(body, userId, allowPresetEndpointOverride 
         let textProbe;
         try {
           textProbe = await probeModelConnection({
-            protocol: provider.protocol, baseUrl: provider.endpoint, apiKey, model: modelId, signal, retryPolicy: retry,
+            protocol: provider.protocol, baseUrl: provider.endpoint, apiKey, model: modelId, signal, retryPolicy: retry, headers: provider.headers,
           });
         } catch (error) {
           if (signal.aborted) throw error;
@@ -317,6 +332,7 @@ export function prepareConnectionTest(body, userId, allowPresetEndpointOverride 
             image: true,
             signal,
             retryPolicy: retry,
+            headers: provider.headers,
           });
         } catch (error) {
           if (signal.aborted) throw error;

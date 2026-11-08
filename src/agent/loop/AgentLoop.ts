@@ -624,6 +624,14 @@ export class AgentLoop {
                 const failure = await contextOverflowAfterEmergency(recompact);
                 yield { type: "stop_failure", sessionId: input.sessionId, turnId: input.turnId, error: failure.error.message };
                 yield await emitStatus(createModelRequestFailedStatus({ error: failure.error }));
+                yield {
+                  type: "model_request_failed",
+                  sessionId: input.sessionId,
+                  turnId: input.turnId,
+                  model: decision.model,
+                  provider: decision.provider,
+                  error: failure.error,
+                };
                 yield { type: "turn_failed", sessionId: input.sessionId, turnId: input.turnId, error: failure.error };
                 await captureTurn(true);
                 yield { type: "turn_completed", sessionId: input.sessionId, turnId: input.turnId, result: failure.result };
@@ -742,6 +750,14 @@ export class AgentLoop {
             modelError,
           }));
         }
+        yield {
+          type: "model_request_failed",
+          sessionId: input.sessionId,
+          turnId: input.turnId,
+          model: decision.model,
+          provider: decision.provider,
+          error: result.errors![0]!,
+        };
         yield { type: "turn_failed", sessionId: input.sessionId, turnId: input.turnId, error: result.errors![0]! };
         await captureTurn(result.type === "error");
         yield { type: "turn_completed", sessionId: input.sessionId, turnId: input.turnId, result };
@@ -857,6 +873,14 @@ export class AgentLoop {
           errors: [error],
         });
         yield await emitStatus(createModelRequestFailedStatus({ error, modelError: assembled.error }));
+        yield {
+          type: "model_request_failed",
+          sessionId: input.sessionId,
+          turnId: input.turnId,
+          model: decision.model,
+          provider: decision.provider,
+          error,
+        };
         yield { type: "turn_failed", sessionId: input.sessionId, turnId: input.turnId, error };
         await captureTurn(true);
         yield { type: "turn_completed", sessionId: input.sessionId, turnId: input.turnId, result };
@@ -914,6 +938,14 @@ export class AgentLoop {
           errors: [error],
         });
         yield await emitStatus(createModelRequestFailedStatus({ error }));
+        yield {
+          type: "model_request_failed",
+          sessionId: input.sessionId,
+          turnId: input.turnId,
+          model: decision.model,
+          provider: decision.provider,
+          error,
+        };
         yield { type: "turn_failed", sessionId: input.sessionId, turnId: input.turnId, error };
         await captureTurn(true);
         yield { type: "turn_completed", sessionId: input.sessionId, turnId: input.turnId, result };
@@ -1152,6 +1184,22 @@ export class AgentLoop {
       yield { type: "assistant_message", sessionId: input.sessionId, turnId: input.turnId, message: assistantMessage };
       await input.onDurableMessage?.(assistantMessage);
 
+      // The provider stream is fully consumed and the turn is moving on (tool
+      // execution or turn end). This is the only place a request is considered
+      // finished: `tool_call_start` and `message_end` alone cannot tell a
+      // fallback retry from a real completion, because `router.execute` may
+      // still emit further events for the same request.
+      if (!assembled.error) {
+        yield {
+          type: "model_request_completed",
+          sessionId: input.sessionId,
+          turnId: input.turnId,
+          model: decision.model,
+          provider: decision.provider,
+          ...(assembled.finishReason ? { finishReason: assembled.finishReason } : {}),
+        };
+      }
+
       if (assembled.error) {
         if (
           !hasAttemptedReasoningContentRetry &&
@@ -1310,6 +1358,14 @@ export class AgentLoop {
                   const failure = await contextOverflowAfterEmergency(compact);
                   yield { type: "stop_failure", sessionId: input.sessionId, turnId: input.turnId, error: failure.error.message };
                   yield await emitStatus(createModelRequestFailedStatus({ error: failure.error }));
+                  yield {
+                    type: "model_request_failed",
+                    sessionId: input.sessionId,
+                    turnId: input.turnId,
+                    model: decision.model,
+                    provider: decision.provider,
+                    error: failure.error,
+                  };
                   yield { type: "turn_failed", sessionId: input.sessionId, turnId: input.turnId, error: failure.error };
                   await captureTurn(true);
                   yield { type: "turn_completed", sessionId: input.sessionId, turnId: input.turnId, result: failure.result };
@@ -1449,6 +1505,14 @@ export class AgentLoop {
           error: classified.error,
           modelError: assembled.error,
         }));
+        yield {
+          type: "model_request_failed",
+          sessionId: input.sessionId,
+          turnId: input.turnId,
+          model: decision.model,
+          provider: decision.provider,
+          error: classified.error,
+        };
         yield { type: "turn_failed", sessionId: input.sessionId, turnId: input.turnId, error: result.errors![0]! };
         await captureTurn(result.type === "error");
         yield { type: "turn_completed", sessionId: input.sessionId, turnId: input.turnId, result };
@@ -2293,26 +2357,29 @@ export class AgentLoop {
     input: AgentLoopInput,
     compact: Extract<Awaited<ReturnType<NonNullable<AgentContextRuntime["tryAutoCompact"]>>>, { type: "compacted" }>,
   ): Promise<void> {
-    if (!input.onCompactPersisted || !compact.result) {
+    const result = compact.result;
+    const emergency = compact.emergencyTruncation;
+    if (!input.onCompactPersisted || (!result && !emergency)) {
       return;
     }
+    const compactionId = result?.compactionId ?? randomUUID();
     const boundary: AgentControlBoundaryTranscriptEntry["boundary"] = {
       kind: "compact",
-      subtype: "compact_boundary",
+      subtype: emergency ? "emergency_truncate" : "compact_boundary",
       compactMetadata: {
-        compactionId: compact.result.compactionId,
-        trigger: compact.result.trigger,
-        preTokens: compact.result.preTokens,
-        postTokens: compact.snapshot.tokens,
-        messagesSummarized: compact.result.messagesSummarized,
-        ...(compact.result.targetPostTokens !== undefined ? { targetTokens: compact.result.targetPostTokens } : {}),
-        summaryGenerated: compactionSummaryGenerated(compact.result),
-        checkpointMerged: compact.result.checkpointMerged ?? compact.result.cacheReset === true,
+        compactionId,
+        trigger: emergency ? "reactive" : result!.trigger,
+        preTokens: emergency?.preTokens ?? result!.preTokens,
+        postTokens: emergency?.postTokens ?? compact.snapshot.tokens,
+        messagesSummarized: emergency ? (result?.messagesSummarized ?? 0) : result!.messagesSummarized,
+        ...(result?.targetPostTokens !== undefined ? { targetTokens: result.targetPostTokens } : {}),
+        summaryGenerated: result ? compactionSummaryGenerated(result) : false,
+        ...(result ? { checkpointMerged: result.checkpointMerged ?? result.cacheReset === true } : {}),
         finalRatio: compact.snapshot.ratio,
         extra: {
           tier: compact.tier,
-          summarySucceeded: compactionSummarySucceeded(compact.result),
-          ...(compact.result.cacheReset ? { cacheReset: true } : {}),
+          summarySucceeded: result ? compactionSummarySucceeded(result) : false,
+          ...(result?.cacheReset ? { cacheReset: true } : {}),
           ...(compact.error
             ? {
                 finalBudgetTokens: compact.snapshot.maxContextTokens,
@@ -2326,7 +2393,7 @@ export class AgentLoop {
     };
     await Promise.resolve(input.onCompactPersisted({
       boundary,
-      messages: markCompactReplacementMessages(compact.messages, compact.result.compactionId),
+      messages: markCompactReplacementMessages(compact.messages, compactionId),
     })).catch(() => {});
   }
 

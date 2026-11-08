@@ -202,7 +202,7 @@ function requestFor({ protocol, apiKey, model, image, maxTokens, imageProbe }) {
  * Executes one text or image probe without retaining API keys or upstream bodies.
  */
 // Allow reasoning models to finish without injecting provider-specific thinking flags.
-export async function probeModelConnection({ protocol, baseUrl, endpointUrl, apiKey = '', model, image = false, maxTokens = 4096, signal, retryPolicy = {} }) {
+export async function probeModelConnection({ protocol, baseUrl, endpointUrl, apiKey = '', model, image = false, maxTokens = 4096, signal, retryPolicy = {}, headers = {} }) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new NetworkFetchError('network_timeout', 'Connection timed out.')), TIMEOUT_MS);
   const forwardAbort = () => controller.abort(signal.reason);
@@ -215,7 +215,7 @@ export async function probeModelConnection({ protocol, baseUrl, endpointUrl, api
     let last = null;
     for (const url of urls) {
       const response = await networkFetch(url, {
-        method: 'POST', headers: mergeRequestHeaders(requestContextHeaders({ purpose: 'model-probe' }), request.headers), body: JSON.stringify(request.body), signal: controller.signal,
+        method: 'POST', headers: mergeRequestHeaders(mergeRequestHeaders(requestContextHeaders({ purpose: 'model-probe' }), request.headers), headers), body: JSON.stringify(request.body), signal: controller.signal,
       }, {
         signal: controller.signal, fetchImpl: fetch,
         retry: {

@@ -12,6 +12,8 @@ vi.mock('../chat/utils/rasterizeAttachmentImage', () => ({ rasterizeAttachmentIm
 const queueMocks = vi.hoisted(() => ({
   useSessionInputQueue: vi.fn(),
   useChatSessionState: vi.fn(),
+  useChatRealtimeHandlers: vi.fn(),
+  refreshFromServer: vi.fn(),
   handleAbortSession: vi.fn(),
   messagesPane: vi.fn(),
 }));
@@ -42,11 +44,11 @@ vi.mock('../../contexts/WebSocketContext', () => ({
 }));
 
 vi.mock('../../stores/useSessionStore', () => ({
-  useSessionStore: () => ({ refreshFromServer: vi.fn() }),
+  useSessionStore: () => ({ refreshFromServer: queueMocks.refreshFromServer }),
 }));
 
 vi.mock('../../hooks/useSessionWatch', () => ({ useSessionWatch: vi.fn() }));
-vi.mock('../chat/hooks/useChatRealtimeHandlers', () => ({ useChatRealtimeHandlers: vi.fn() }));
+vi.mock('../chat/hooks/useChatRealtimeHandlers', () => ({ useChatRealtimeHandlers: queueMocks.useChatRealtimeHandlers }));
 
 vi.mock('../chat/hooks/useChatProviderState', () => ({
   useChatProviderState: () => ({
@@ -125,6 +127,35 @@ const emptyQueue = () => ({
 });
 
 describe('ChatInterfaceV2 queue integration', () => {
+  it('realigns the current message window after reconnect during an active run', async () => {
+    queueMocks.useChatSessionState.mockReturnValue(createChatSessionState({ isLoading: true }));
+    queueMocks.useSessionInputQueue.mockReturnValue(emptyQueue());
+    queueMocks.refreshFromServer.mockResolvedValue(undefined);
+    const sendMessage = vi.fn();
+
+    render(<ChatInterfaceV2 {...({
+      selectedProject: { name: 'PilotDeck', fullPath: '/workspace/PilotDeck' },
+      selectedSession: { id: 'web:s_queue' },
+      ws: { readyState: WebSocket.OPEN },
+      sendMessage,
+      processingSessions: new Set(['web:s_queue']),
+    } as any)} />);
+
+    const reconnect = queueMocks.useChatRealtimeHandlers.mock.calls.at(-1)![0].onWebSocketReconnect;
+    await act(async () => { await reconnect(); });
+
+    expect(queueMocks.refreshFromServer).toHaveBeenCalledWith('web:s_queue', expect.objectContaining({
+      provider: 'pilotdeck',
+      projectName: 'PilotDeck',
+      projectPath: '/workspace/PilotDeck',
+    }));
+    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'check-session-status',
+      sessionId: 'web:s_queue',
+      includeActiveTurnMessages: true,
+    }));
+  });
+
   it('opens a completed fork without waiting for a stalled sidebar refresh', async () => {
     queueMocks.useChatSessionState.mockReturnValue(createChatSessionState({ isLoading: false }));
     queueMocks.useSessionInputQueue.mockReturnValue(emptyQueue());

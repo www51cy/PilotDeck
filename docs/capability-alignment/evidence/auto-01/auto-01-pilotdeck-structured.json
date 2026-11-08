@@ -1,0 +1,846 @@
+{
+  "mode": "structured",
+  "protocolVersion": "1.1",
+  "sessionKey": "test:project=/root/pilotdeck:s_266641fc-6518-4b41-accc-c5e105cc01c5",
+  "events": [
+    {
+      "type": "turn_started",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2"
+    },
+    {
+      "type": "input_accepted",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2"
+    },
+    {
+      "type": "model_request_started",
+      "model": "ark-code-latest",
+      "provider": "volc_ark",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2"
+    },
+    {
+      "type": "context_budget",
+      "used": 10254,
+      "displayUsed": 10254,
+      "total": 262144,
+      "effectiveTotal": 229376,
+      "reservedOutputTokens": 32768,
+      "ratio": 0.044703892299107144,
+      "state": "ok",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2"
+    },
+    {
+      "type": "model_selection_changed",
+      "provider": "volc_ark",
+      "model": "ark-code-latest",
+      "source": "default",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2"
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": "I",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 2,
+        "offset": 0
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " need",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 3,
+        "offset": 1
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " respond",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 4,
+        "offset": 6
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " by",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 5,
+        "offset": 14
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " calling",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 6,
+        "offset": 17
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " structured",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 7,
+        "offset": 25
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": "_output",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 8,
+        "offset": 36
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " tool",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 9,
+        "offset": 43
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " with",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 10,
+        "offset": 48
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " value",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 11,
+        "offset": 53
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " {\"",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 12,
+        "offset": 59
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": "status",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 13,
+        "offset": 62
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": "\":\"",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 14,
+        "offset": 68
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": "P",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 15,
+        "offset": 71
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": "IL",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 16,
+        "offset": 72
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": "OT",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 17,
+        "offset": 74
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": "_STRUCTURE",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 18,
+        "offset": 76
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": "D",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 19,
+        "offset": 86
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": "_OK",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 20,
+        "offset": 87
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": "\"",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 21,
+        "offset": 90
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": "}.",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 22,
+        "offset": 91
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " I'll",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 23,
+        "offset": 93
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " call",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 24,
+        "offset": 98
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " the",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 25,
+        "offset": 103
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " tool",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 26,
+        "offset": 107
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " functions",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 27,
+        "offset": 112
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": ".",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 28,
+        "offset": 122
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": "structured",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 29,
+        "offset": 123
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": "_output",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 30,
+        "offset": 133
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": ".",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 31,
+        "offset": 140
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " Straight",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 32,
+        "offset": 141
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": "forward",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 33,
+        "offset": 150
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": ".",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 34,
+        "offset": 157
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " Should",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 35,
+        "offset": 158
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " not",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 36,
+        "offset": 165
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " add",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 37,
+        "offset": 169
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " text",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 38,
+        "offset": 173
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " likely",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 39,
+        "offset": 178
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": ".",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 40,
+        "offset": 185
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " Call",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 41,
+        "offset": 186
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " the",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 42,
+        "offset": 191
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " tool",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 43,
+        "offset": 195
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": ".",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 44,
+        "offset": 200
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " Ensure",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 45,
+        "offset": 201
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " JSON",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 46,
+        "offset": 208
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " value",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 47,
+        "offset": 213
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": " object",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 48,
+        "offset": 219
+      }
+    },
+    {
+      "type": "assistant_thinking_delta",
+      "text": ".",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 49,
+        "offset": 226
+      }
+    },
+    {
+      "type": "assistant_stream_end",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "streamBoundary": {
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "through": 0,
+        "revision": 51
+      }
+    },
+    {
+      "type": "assistant_stream_end",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+      "streamBoundary": {
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "through": 0,
+        "revision": 52
+      }
+    },
+    {
+      "type": "assistant_block",
+      "kind": "thinking",
+      "blockId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+      "text": "I need respond by calling structured_output tool with value {\"status\":\"PILOT_STRUCTURED_OK\"}. I'll call the tool functions.structured_output. Straightforward. Should not add text likely. Call the tool. Ensure JSON value object.",
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 0,
+        "revision": 53
+      },
+      "streamState": "closed",
+      "model": "ark-code-latest",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2"
+    },
+    {
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "tool:structured_output_0_4a9fa5a0",
+        "previousId": "ec52633b-c80f-4397-9a33-2d6594e657f3:thinking:0",
+        "order": 1,
+        "revision": 54
+      },
+      "type": "tool_call_started",
+      "toolCallId": "structured_output_0_4a9fa5a0",
+      "name": "structured_output",
+      "argsPreview": "{\"value\":{\"status\":\"PILOT_STRUCTURED_OK\"}}",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2"
+    },
+    {
+      "type": "tool_call_finished",
+      "toolCallId": "structured_output_0_4a9fa5a0",
+      "ok": true,
+      "resultPreview": "{\"status\":\"PILOT_STRUCTURED_OK\"}",
+      "resultLineCount": 1,
+      "resultBytes": 32,
+      "toolName": "structured_output",
+      "data": {
+        "status": "PILOT_STRUCTURED_OK"
+      },
+      "timeline": {
+        "version": 1,
+        "turnId": "902585a9-a589-44fe-b262-2b47c828a7e2",
+        "id": "result:structured_output_0_4a9fa5a0",
+        "previousId": "tool:structured_output_0_4a9fa5a0",
+        "order": 2,
+        "revision": 55
+      },
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2"
+    },
+    {
+      "type": "tool_result_detail_available",
+      "toolCallId": "structured_output_0_4a9fa5a0",
+      "fullText": "{\"status\":\"PILOT_STRUCTURED_OK\"}",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2"
+    },
+    {
+      "type": "agent_status",
+      "event": "max_turns_reached",
+      "detail": {
+        "message": "Reached the maximum number of turns (1), so this turn has stopped. Increase maxTurns or split the task into smaller steps and try again.",
+        "messageI18n": {
+          "key": "chat:agentStatus.maxTurns.message",
+          "params": {
+            "maxTurns": 1
+          }
+        },
+        "code": "agent_max_turns_reached",
+        "severity": "error",
+        "visible": true,
+        "userHint": "Max turn limit reached. Increase maxTurns in config or break the task into smaller steps.",
+        "userHintI18n": {
+          "key": "chat:agentStatus.maxTurns.hint"
+        },
+        "scope": "turn",
+        "source": "agent",
+        "maxTurns": 1
+      },
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2"
+    },
+    {
+      "type": "structured_output",
+      "payload": {
+        "status": "PILOT_STRUCTURED_OK"
+      },
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2"
+    },
+    {
+      "type": "turn_completed",
+      "usage": {
+        "inputTokens": 49,
+        "outputTokens": 110,
+        "cacheReadTokens": 10496,
+        "cacheWriteTokens": 0,
+        "totalTokens": 10655
+      },
+      "finishReason": "max_turns",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2"
+    }
+  ],
+  "text": "",
+  "completed": [
+    {
+      "type": "turn_completed",
+      "usage": {
+        "inputTokens": 49,
+        "outputTokens": 110,
+        "cacheReadTokens": 10496,
+        "cacheWriteTokens": 0,
+        "totalTokens": 10655
+      },
+      "finishReason": "max_turns",
+      "runId": "902585a9-a589-44fe-b262-2b47c828a7e2"
+    }
+  ],
+  "errors": []
+}

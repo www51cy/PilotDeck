@@ -5,6 +5,9 @@ export type V2Provider = {
   url?: string;
   apiKey?: string;
   models?: Record<string, Record<string, unknown> | null>;
+  headers?: Record<string, string>;
+  timeoutMs?: number;
+  [key: string]: unknown;
   retry?: {
     requestMaxRetries?: number;
     streamMaxRetries?: number;

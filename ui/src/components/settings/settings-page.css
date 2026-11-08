@@ -1107,6 +1107,23 @@
   gap: 12px;
 }
 
+:where(.pilotdeck-settings-app) .provider-advanced-section .field-help {
+  display: block;
+  margin: 8px 0 12px;
+  line-height: 1.5;
+}
+
+:where(.pilotdeck-settings-app) .provider-advanced-json {
+  min-height: 160px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+:where(.pilotdeck-settings-app) .provider-advanced-section .field-error {
+  display: block;
+  margin-top: 8px;
+}
+
 :where(.pilotdeck-settings-app) .fetch-models-button {
   display: inline-flex;
   align-items: center;

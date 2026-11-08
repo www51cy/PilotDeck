@@ -11,12 +11,10 @@ export function ThinkingBlock({ content, isStreaming, inline, projectName, onFil
   projectName?: string;
   onFileOpen?: (path: string) => void;
 }) {
-  // Only phase transitions change the default; token updates preserve manual toggles.
-  const [view, setView] = useState({ streaming: isStreaming, expanded: isStreaming });
-  // Reset the phase default during render, before paint. A completed block never
-  // flashes a restarted typewriter or an expanded stale viewport for one frame.
-  if (view.streaming !== isStreaming) setView({ streaming: isStreaming, expanded: isStreaming });
-  const expanded = view.streaming === isStreaming ? view.expanded : isStreaming;
+  // The streaming phase supplies a default only; a manual toggle owns the view
+  // across completion and any later streaming updates.
+  const [manualExpanded, setManualExpanded] = useState<boolean | null>(null);
+  const expanded = manualExpanded ?? isStreaming;
   const { t } = useTranslation('chat');
   const text = content;
   return (
@@ -24,7 +22,7 @@ export function ThinkingBlock({ content, isStreaming, inline, projectName, onFil
       <button
         type="button"
         aria-expanded={expanded}
-        onClick={() => setView({ streaming: isStreaming, expanded: !expanded })}
+        onClick={() => setManualExpanded(!expanded)}
         className={`hover-brand-text flex items-center gap-2 text-left text-[13px] font-medium ${inline
           ? 'text-blue-600/70 hover:text-blue-700 dark:text-blue-400/70 dark:hover:text-blue-300'
           : 'text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200'}`}

@@ -656,3 +656,43 @@ describe('completed turn folding', () => {
     expect(fold(messages).some((item) => item.turnTrace)).toBe(false);
   });
 });
+
+describe('mid-turn page start', () => {
+  // Backward history paging cuts by message count, so a loaded window can begin
+  // in the middle of a turn. Such a window has no opening user prompt; any
+  // "processed" header derived from it would be pinned above messages that
+  // belong to a different turn.
+  const fold = (messages: ChatMessage[], working = false) => foldCompletedTurns(
+    messages, buildRenderableMessageItems(messages, { isAssistantWorking: working }), working,
+  );
+
+  it('does not synthesize a process header when the window has no user prompt', () => {
+    const messages = [
+      thinking('t1', 'Checking the build.', 1000),
+      assistant('mid', 'Type check passed.', 2000),
+      thinking('t2', 'Now running the tests.', 260000),
+      assistant('final', 'All green.', 300000),
+    ];
+    const items = fold(messages);
+    expect(items.some((item) => item.turnTrace)).toBe(false);
+    // The real answer must still be rendered as a normal row, exactly once.
+    expect(items.filter((item) => item.message.id === 'final')).toHaveLength(1);
+  });
+
+  it('still folds the anchored turn that follows a mid-turn window start', () => {
+    const messages = [
+      thinking('t1', 'Finishing the previous turn.', 1000),
+      assistant('prev-final', 'Previous turn answer.', 2000),
+      { ...user('u2', 'Next question'), timestamp: timestamp(3000) },
+      thinking('t2', 'Working on it.', 3500),
+      assistant('a2', 'Next answer.', 4000),
+    ];
+    const items = fold(messages);
+    const traces = items.filter((item) => item.turnTrace);
+    expect(traces).toHaveLength(1);
+    expect(traces[0].originalIndex).toBe(2.01);
+    // The mid-turn rows stay in place (nothing is hoisted above them), and the
+    // anchored turn is still folded right after its own prompt.
+    expect(items.map((item) => item.message.id)).toEqual(['t1', 'prev-final', 'u2', 'turn-trace-u2', 'a2']);
+  });
+});

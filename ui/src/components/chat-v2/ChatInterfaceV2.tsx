@@ -192,6 +192,7 @@ function ChatInterfaceV2({
     isLoadingMoreMessages,
     hasMoreMessages,
     totalMessages,
+    loadedMessageCount,
     canAbortSession,
     setCanAbortSession,
     isAborting: _isAborting,
@@ -920,6 +921,7 @@ function ChatInterfaceV2({
           isLoadingMoreMessages={isLoadingMoreMessages}
           hasMoreMessages={hasMoreMessages}
           totalMessages={totalMessages}
+          loadedMessageCount={loadedMessageCount}
           loadEarlierMessages={loadEarlierMessages}
           loadAllMessages={loadAllMessages}
           allMessagesLoaded={allMessagesLoaded}

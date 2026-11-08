@@ -215,6 +215,8 @@ export interface SessionSlot {
   lastError: string | null;
   total: number;
   hasMore: boolean;
+  /** Absolute transcript index of the first loaded server message. */
+  headOffset: number;
   offset: number;
   tokenUsage: unknown;
   /** Monotonic id assigned when a server-history request starts. */
@@ -278,6 +280,7 @@ function createEmptySlot(): SessionSlot {
     lastError: null,
     total: 0,
     hasMore: false,
+    headOffset: 0,
     offset: 0,
     tokenUsage: null,
     _serverRequestGeneration: 0,
@@ -1635,6 +1638,7 @@ export function createRafNotifyScheduler(
 
 const STALE_THRESHOLD_MS = 30_000;
 
+const DEFAULT_HISTORY_WINDOW = 100;
 const MAX_REALTIME_MESSAGES = 500;
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
@@ -1690,9 +1694,11 @@ export function useSessionStore() {
       relativeTranscriptPath?: string;
       limit?: number | null;
       offset?: number;
+      direction?: 'forward' | 'backward';
     } = {},
   ) => {
     const slot = getSlot(sessionId);
+    const direction = opts.direction ?? 'forward';
     const requestGeneration = slot._serverRequestGeneration + 1;
     slot._serverRequestGeneration = requestGeneration;
     slot._serverLoadingGeneration = requestGeneration;
@@ -1713,6 +1719,7 @@ export function useSessionStore() {
         params.append('limit', String(opts.limit));
         params.append('offset', String(opts.offset ?? 0));
       }
+      if (direction === 'backward') params.append('direction', direction);
 
       const qs = params.toString();
       const url = `/api/sessions/${encodeURIComponent(sessionId)}/messages${qs ? `?${qs}` : ''}`;
@@ -1733,14 +1740,31 @@ export function useSessionStore() {
       slot._serverAppliedGeneration = requestGeneration;
       if (Array.isArray(data.stream?.messages)) applyTimelineFrames(slot, data.stream.messages);
       const messages: NormalizedMessage[] = data.messages || [];
-      reconcileTimelineHistory(slot, messages, !data.hasMore && (opts.offset ?? 0) === 0);
+      const responseTotal = data.total ?? messages.length;
+      const parsedPrevCursor = Number.parseInt(data.prevCursor ?? '', 10);
+      const responseHeadOffset = direction === 'backward'
+        ? Number.isFinite(parsedPrevCursor)
+          ? parsedPrevCursor
+          : data.hasMore
+            ? Math.max(0, responseTotal - messages.length)
+            : 0
+        : opts.offset ?? 0;
 
       const previousById = new Map(slot.serverMessages.map(message => [message.id, message]));
-      slot.serverMessages = enrichConfirmedUsers(messages, slot.realtimeMessages)
+      const nextServerMessages = enrichConfirmedUsers(messages, slot.realtimeMessages)
         .map(message => preserveUserInputs(message, previousById.get(message.id)));
-      slot.total = data.total ?? messages.length;
-      slot.hasMore = Boolean(data.hasMore);
-      slot.offset = (opts.offset ?? 0) + messages.length;
+      reconcileTimelineHistory(
+        slot,
+        nextServerMessages,
+        direction === 'backward'
+          ? responseHeadOffset === 0
+          : !data.hasMore && (opts.offset ?? 0) === 0,
+      );
+      slot.serverMessages = nextServerMessages;
+      slot.total = responseTotal;
+      slot.headOffset = responseHeadOffset;
+      slot.hasMore = direction === 'backward' ? responseHeadOffset > 0 : Boolean(data.hasMore);
+      slot.offset = responseHeadOffset + messages.length;
       slot.fetchedAt = Date.now();
       if (slot._serverLoadingGeneration === requestGeneration) {
         slot._serverLoadingGeneration = null;
@@ -1803,8 +1827,10 @@ export function useSessionStore() {
       params.append('relativeTranscriptPath', opts.relativeTranscriptPath);
     }
     const limit = opts.limit ?? 20;
+    const requestedHeadOffset = slot.headOffset;
     params.append('limit', String(limit));
-    params.append('offset', String(slot.offset));
+    params.append('offset', String(requestedHeadOffset));
+    params.append('direction', 'backward');
 
     const qs = params.toString();
     const url = `/api/sessions/${encodeURIComponent(sessionId)}/messages${qs ? `?${qs}` : ''}`;
@@ -1822,11 +1848,25 @@ export function useSessionStore() {
       }
       const data = await response.json();
       const olderMessages: NormalizedMessage[] = data.messages || [];
+      const parsedPrevCursor = Number.parseInt(data.prevCursor ?? '', 10);
+      const responseHeadOffset = Number.isFinite(parsedPrevCursor)
+        ? parsedPrevCursor
+        : data.hasMore
+          ? Math.max(0, requestedHeadOffset - olderMessages.length)
+          : 0;
+      const previousById = new Map(slot.serverMessages.map(message => [message.id, message]));
+      const enrichedOlderMessages = enrichConfirmedUsers(olderMessages, slot.realtimeMessages)
+        .map(message => preserveUserInputs(message, previousById.get(message.id)));
+      const existingIds = new Set(slot.serverMessages.map(message => message.id));
+      const uniqueOlderMessages = enrichedOlderMessages.filter(message => !existingIds.has(message.id));
+      const nextServerMessages = [...uniqueOlderMessages, ...slot.serverMessages];
 
-      // Prepend older messages (they're earlier in the conversation)
-      slot.serverMessages = [...olderMessages, ...slot.serverMessages];
-      slot.hasMore = Boolean(data.hasMore);
-      slot.offset = slot.offset + olderMessages.length;
+      reconcileTimelineHistory(slot, nextServerMessages, responseHeadOffset === 0);
+      slot.serverMessages = nextServerMessages;
+      slot.total = data.total ?? slot.total;
+      slot.headOffset = responseHeadOffset;
+      slot.hasMore = responseHeadOffset > 0;
+      slot.offset = responseHeadOffset + nextServerMessages.length;
       recomputeMergedIfNeeded(slot);
       notify(sessionId);
       return slot;
@@ -2199,9 +2239,11 @@ export function useSessionStore() {
       parentSessionId?: string;
       relativeTranscriptPath?: string;
       afterRestore?: boolean;
+      limit?: number | null;
     } = {},
   ) => {
     const slot = getSlot(sessionId);
+    const fullHistory = opts.afterRestore || opts.limit === null;
     const requestGeneration = slot._serverRequestGeneration + 1;
     slot._serverRequestGeneration = requestGeneration;
     try {
@@ -2213,6 +2255,11 @@ export function useSessionStore() {
       if (opts.parentSessionId) params.append('parentSessionId', opts.parentSessionId);
       if (opts.relativeTranscriptPath) {
         params.append('relativeTranscriptPath', opts.relativeTranscriptPath);
+      }
+      if (!fullHistory) {
+        params.append('limit', String(opts.limit ?? DEFAULT_HISTORY_WINDOW));
+        params.append('offset', '0');
+        params.append('direction', 'backward');
       }
 
       const qs = params.toString();
@@ -2251,14 +2298,35 @@ export function useSessionStore() {
         slot.activityMessages = [];
         slot.timeline = undefined;
       }
+      const responseTotal = data.total ?? (fullHistory || !data.hasMore ? incomingMessages.length : slot.total);
+      const parsedPrevCursor = Number.parseInt(data.prevCursor ?? '', 10);
+      const responseHeadOffset = fullHistory
+        ? 0
+        : Number.isFinite(parsedPrevCursor)
+          ? parsedPrevCursor
+          : data.hasMore
+            ? Math.max(0, responseTotal - incomingMessages.length)
+            : 0;
       if (opts.afterRestore || incomingMessages.length > 0 || slot.serverMessages.length === 0) {
-        reconcileTimelineHistory(slot, incomingMessages, !data.hasMore);
         const previousById = new Map(slot.serverMessages.map(message => [message.id, message]));
-        slot.serverMessages = enrichConfirmedUsers(incomingMessages, slot.realtimeMessages)
+        const enrichedIncoming = enrichConfirmedUsers(incomingMessages, slot.realtimeMessages)
           .map(message => preserveUserInputs(message, previousById.get(message.id)));
+        const retainedOlderCount = fullHistory
+          ? 0
+          : Math.min(
+              Math.max(0, responseHeadOffset - slot.headOffset),
+              slot.serverMessages.length,
+            );
+        const retainedOlder = slot.serverMessages.slice(0, retainedOlderCount);
+        const nextServerMessages = [...retainedOlder, ...enrichedIncoming];
+        const nextHeadOffset = responseHeadOffset - retainedOlder.length;
+        reconcileTimelineHistory(slot, nextServerMessages, nextHeadOffset === 0);
+        slot.serverMessages = nextServerMessages;
+        slot.total = responseTotal;
+        slot.headOffset = nextHeadOffset;
+        slot.offset = nextHeadOffset + nextServerMessages.length;
       }
-      slot.total = data.total ?? slot.serverMessages.length;
-      slot.hasMore = Boolean(data.hasMore);
+      slot.hasMore = slot.headOffset > 0;
       slot.fetchedAt = Date.now();
       // Server is authoritative, but a post-complete refresh can race the
       // transcript writer/read path and return a non-empty yet not-quite-final
@@ -2268,7 +2336,7 @@ export function useSessionStore() {
       if (slot.realtimeMessages.length > 0 && incomingMessages.length > 0) {
         slot.realtimeMessages = getRealtimeMessagesToKeepAfterServerRefresh(
           slot.realtimeMessages,
-          incomingMessages,
+          slot.serverMessages,
         );
       }
       recomputeMergedIfNeeded(slot);
