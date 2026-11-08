@@ -2,6 +2,7 @@ import { repositoryFileFingerprint } from "../../../src/session/checkpoints/repo
 import express from 'express';
 import { spawn } from 'child_process';
 import path from 'path';
+import os from 'os';
 import { promises as fs } from 'fs';
 import { extractProjectDirectory } from '../projects.js';
 import { runChatViaGateway, getPilotDeckGateway } from '../pilotdeck-bridge.js';
@@ -318,21 +319,46 @@ router.get('/status', async (req, res) => {
     // without per-file fingerprints or `write-tree` (which are only needed for
     // the checkpoint diff view).
     if (req.query.summary === '1' || req.query.summary === 'true') {
+      const home = path.resolve(os.homedir());
+      // A workspace that merely sits inside someone else's repository (most
+      // often a home directory that was accidentally `git init`-ed) must not
+      // borrow that repository's branch. Fall back to the directory the runtime
+      // actually works in, which is the repository the user cares about.
+      let summaryRoot = path.resolve(repositoryRoot);
+      if (summaryRoot === home) {
+        const runtimeRoot = await getRepositoryRootPath(process.cwd()).catch(() => null);
+        if (!runtimeRoot || path.resolve(runtimeRoot) === home) {
+          return res.json({ isRepository: false, repositoryRoot: summaryRoot, reason: 'ANCESTOR_HOME_REPOSITORY' });
+        }
+        summaryRoot = path.resolve(runtimeRoot);
+      }
+
+      const runtimeBranch = summaryRoot === path.resolve(repositoryRoot)
+        ? branch
+        : await getCurrentBranchName(summaryRoot).catch(() => '');
+      const { stdout: summaryStatus } = await spawnAsync(
+        'git',
+        ['--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=all'],
+        { cwd: summaryRoot },
+      );
+      const summaryEntries = summaryRoot === path.resolve(repositoryRoot)
+        ? entries
+        : parseGitStatus(summaryStatus);
       const aheadBehind = await spawnAsync(
         'git',
         ['rev-list', '--left-right', '--count', '@{upstream}...HEAD'],
-        { cwd: repositoryRoot },
+        { cwd: summaryRoot },
       ).then(result => result.stdout.trim().split(/\s+/).map(Number), () => null);
       const [behind = 0, ahead = 0] = aheadBehind ?? [];
       return res.json({
         isRepository: true,
-        branch,
+        branch: runtimeBranch,
         hasCommits,
-        repositoryRoot,
-        dirty: entries.length,
+        repositoryRoot: summaryRoot,
+        dirty: summaryEntries.length,
         ahead: Number.isFinite(ahead) ? ahead : 0,
         behind: Number.isFinite(behind) ? behind : 0,
-        untracked: entries.filter(entry => entry.untracked).length,
+        untracked: summaryEntries.filter(entry => entry.untracked).length,
       });
     }
 
