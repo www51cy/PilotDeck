@@ -452,6 +452,9 @@ export function useChatSessionState({
       }
     }
     setPendingUserMessage(null);
+    // The submit that owned this bubble is finished. Drop the target as well,
+    // so a later bubble can never be matched against this session again.
+    pendingViewSessionRef.current = null;
   }
   prevActiveSessionRef.current = activeSessionId;
 
@@ -519,7 +522,12 @@ export function useChatSessionState({
   const addMessage = useCallback((msg: ChatMessage, targetSessionId?: string | null) => {
     const sessionId = targetSessionId !== undefined ? targetSessionId : activeSessionId;
     if (!sessionId) {
-      // No session yet — show as pending until the backend creates one
+      // No session yet — show as pending until the backend creates one.
+      // Reset the target id first: `pendingViewSessionRef` keeps whatever
+      // session an earlier submit was bound to, and only `session_created`
+      // rewrites it. Inheriting that stale id would render this bubble inside
+      // an unrelated, already-existing conversation.
+      pendingViewSessionRef.current = { sessionId: null, startedAt: Date.now() };
       setPendingUserMessage(msg);
       return;
     }
@@ -527,7 +535,7 @@ export function useChatSessionState({
     if (normalized) {
       sessionStore.appendRealtime(sessionId, normalized);
     }
-  }, [activeSessionId, sessionStore]);
+  }, [activeSessionId, pendingViewSessionRef, sessionStore]);
 
   const clearMessages = useCallback(() => {
     if (!activeSessionId) return;
