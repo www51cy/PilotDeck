@@ -328,6 +328,7 @@ router.get('/status', async (req, res) => {
         isRepository: true,
         branch,
         hasCommits,
+        repositoryRoot,
         dirty: entries.length,
         ahead: Number.isFinite(ahead) ? ahead : 0,
         behind: Number.isFinite(behind) ? behind : 0,

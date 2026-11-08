@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatGitStatusChip } from './useGitStatusSummary';
+import { formatGitStatusChip, isOwnRepository } from './useGitStatusSummary';
 
 describe('formatGitStatusChip', () => {
   it('shows the branch and the number of uncommitted files', () => {
@@ -23,5 +23,24 @@ describe('formatGitStatusChip', () => {
     expect(formatGitStatusChip({
       isRepository: true, branch: '', dirty: 2, ahead: 0, behind: 0,
     })).toBeNull();
+  });
+});
+
+describe('isOwnRepository', () => {
+  it('accepts a workspace that is its own repository root', () => {
+    expect(isOwnRepository('/root/pilotdeck', '/root/pilotdeck')).toBe(true);
+    expect(isOwnRepository('/root/pilotdeck/', '/root/pilotdeck')).toBe(true);
+  });
+
+  it('rejects a workspace that merely sits inside another repository', () => {
+    // A general workspace under an accidentally `git init`-ed home directory
+    // must not borrow that repository's branch and dirty count.
+    expect(isOwnRepository('/root/PilotDeckGeneral', '/root')).toBe(false);
+    expect(isOwnRepository('/root/PilotDeckGeneral', '/root/')).toBe(false);
+  });
+
+  it('rejects when either side is unknown', () => {
+    expect(isOwnRepository('/root/pilotdeck', undefined)).toBe(false);
+    expect(isOwnRepository(undefined, '/root/pilotdeck')).toBe(false);
   });
 });

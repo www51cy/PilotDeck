@@ -9,6 +9,25 @@ export type GitStatusSummary = {
   behind: number;
 };
 
+const normalizePath = (value: string | undefined): string =>
+  (value || '').replace(/[\\/]+$/, '');
+
+/**
+ * The chip describes the workspace directory itself, not whatever repository
+ * happens to contain it. A workspace inside an unrelated ancestor repo (for
+ * example a general workspace under a home directory that was accidentally
+ * `git init`-ed) must not borrow that repository's branch and dirty count.
+ */
+export function isOwnRepository(
+  projectKey: string | undefined,
+  repositoryRoot: string | undefined,
+): boolean {
+  const project = normalizePath(projectKey);
+  const root = normalizePath(repositoryRoot);
+  if (!project || !root) return false;
+  return project === root;
+}
+
 /**
  * `⎇ main (+29)` — branch plus the number of uncommitted files. Returns null
  * when there is nothing meaningful to show (non-repo, unresolvable project).
@@ -43,7 +62,7 @@ export function useGitStatusSummary(
       if (!response.ok) throw new Error(`git status summary failed: ${response.status}`);
       const data = await response.json();
       if (requestId !== requestIdRef.current) return;
-      if (!data?.isRepository || !data?.branch) {
+      if (!data?.isRepository || !data?.branch || !isOwnRepository(projectKey, data.repositoryRoot)) {
         setSummary(null);
         return;
       }
